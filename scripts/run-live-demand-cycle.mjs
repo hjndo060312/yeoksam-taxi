@@ -233,7 +233,7 @@ const logEntry = {
   forecast_top_regions: (forecast?.regions ?? []).slice(0, 5),
   dispatch_top_decisions: (dispatch?.decisions ?? []).slice(0, 5),
   note:
-    "This validates live inputs, logs the forecast, and records the dispatch recommendation. True demand accuracy can be scored later when a matching observed demand proxy or taxi-call label is available.",
+    "This validates live inputs, logs the forecast, and records the demand monitoring priority. It is not an operational taxi dispatch command. True demand accuracy can be scored later when a matching observed demand proxy or taxi-call label is available.",
 };
 
 const latestPath = path.join(liveValidationDir, "latest.json");

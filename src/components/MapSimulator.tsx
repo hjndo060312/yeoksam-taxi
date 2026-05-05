@@ -316,6 +316,14 @@ function dispatchUnits(decision: DispatchDecision) {
   return decision.coverage_units ?? decision.recommended_taxis ?? 0;
 }
 
+function monitoringActionLabel(action: string | null | undefined, level?: string | null) {
+  if (action === "선제 이동" || level === "high") return "수요 집중 매우 높음";
+  if (action === "커버 보강" || level === "medium") return "수요 집중 높음";
+  if (action === "관찰" || level === "watch") return "주의 관찰";
+  if (action === "유지" || level === "low") return "안정";
+  return action ?? "-";
+}
+
 function dispatchActionTextClass(level: string | null | undefined) {
   if (level === "high") return "text-red-400";
   if (level === "medium") return "text-yellow-300";
@@ -1500,9 +1508,9 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
           <div className={`mt-3 ${PANEL_CARD_CLASS}`}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className={PANEL_SECTION_LABEL_CLASS}>배차 권고</div>
+                <div className={PANEL_SECTION_LABEL_CLASS}>수요 관찰 우선순위</div>
                 <div className="mt-1 text-sm font-semibold text-slate-100">
-                  수급 불균형 우선순위
+                  수요압력 우선 관찰 동
                 </div>
               </div>
               <span
@@ -1532,11 +1540,11 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                           {decision.dong_name}
                         </span>
                         <span className={`text-[11px] font-semibold ${dispatchActionTextClass(decision.action_level)}`}>
-                          {decision.action}
+                          {monitoringActionLabel(decision.action, decision.action_level)}
                         </span>
                       </div>
                       <div className="mt-1 text-[11px] leading-5 text-slate-500">
-                        불균형 {scoreText(decision.imbalance_score)} · 공급{" "}
+                        수요압력 {scoreText(decision.imbalance_score)} · 접근성{" "}
                         {scoreText(decision.supply_proxy_score)} · 평균속도{" "}
                         {decision.avg_speed_kmh == null ? "-" : `${decision.avg_speed_kmh}km/h`}
                       </div>
@@ -1546,7 +1554,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                         decision.action_level,
                       )}`}
                     >
-                      권고 강도 {dispatchUnits(decision)}
+                      우선순위 {dispatchUnits(decision)}
                     </span>
                   </div>
                 </div>
@@ -1554,8 +1562,8 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
             </div>
 
             <div className="mt-2 text-[11px] leading-5 text-slate-500">
-              권고 강도는 실제 택시 대수가 아니라 수요 score와 도로 공급 proxy를
-              결합한 우선순위 단계입니다.
+              우선순위는 실제 택시 대수가 아니라 수요 score와 도로 접근성 proxy를
+              결합한 관찰 단계입니다.
             </div>
           </div>
         ) : null}

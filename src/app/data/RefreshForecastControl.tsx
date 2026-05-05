@@ -76,7 +76,7 @@ export default function RefreshForecastControl() {
       <div className="border-b border-slate-200 px-5 py-4">
         <h2 className="text-lg font-black">예측 갱신 요청</h2>
         <p className="mt-1 text-sm text-slate-500">
-          버튼 하나로 예측 생성, 배차 계산, Cloudflare 배포를 이어 실행합니다.
+          버튼 하나로 예측 생성, 수요 우선순위 계산, Cloudflare 배포를 이어 실행합니다.
         </p>
       </div>
       <div className="space-y-4 px-5 py-5">

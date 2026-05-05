@@ -207,6 +207,14 @@ function actionTone(level: DispatchDecision["action_level"]) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
+function monitoringActionLabel(action: string | null | undefined, level?: string | null) {
+  if (action === "선제 이동" || level === "high") return "수요 집중 매우 높음";
+  if (action === "커버 보강" || level === "medium") return "수요 집중 높음";
+  if (action === "관찰" || level === "watch") return "주의 관찰";
+  if (action === "유지" || level === "low") return "안정";
+  return action ?? "-";
+}
+
 function scoreLabel(value: number | null | undefined) {
   return typeof value === "number" ? value.toFixed(3) : "-";
 }
@@ -291,9 +299,12 @@ export default function DataPage() {
       ...freshnessStatus(citydataAgeMinutes, 90, 180),
     },
     {
-      name: "배차 권고",
+      name: "수요 우선순위",
       timeLabel: ageLabel(dispatchAgeMinutes),
-      detail: `${dispatch.decisions.length}개 동 · ${topDecision?.action ?? "-"}`,
+      detail: `${dispatch.decisions.length}개 동 · ${monitoringActionLabel(
+        topDecision?.action,
+        topDecision?.action_level,
+      )}`,
       ...freshnessStatus(dispatchAgeMinutes, 90, 180),
     },
     {
@@ -315,9 +326,9 @@ export default function DataPage() {
       detail: `${forecast.source === "demo" ? "데모" : "모델"} · ${strategyLabel(forecast.strategy)}`,
     },
     {
-      label: "3. 판단",
+      label: "3. 우선순위",
       value: topDecision?.dong_name ?? "-",
-      detail: `${topDecision?.action ?? "-"} · 불균형 ${scoreLabel(topDecision?.imbalance_score)}`,
+      detail: `${monitoringActionLabel(topDecision?.action, topDecision?.action_level)} · 수요압력 ${scoreLabel(topDecision?.imbalance_score)}`,
     },
     {
       label: "4. 반영",
@@ -358,11 +369,11 @@ export default function DataPage() {
                 </span>
               </div>
               <h1 className="mt-4 text-3xl font-black tracking-normal sm:text-4xl">
-                실시간 수집에서 배차 권고까지
+                실시간 수집에서 수요 예측까지
               </h1>
               <p className="mt-3 max-w-2xl text-base leading-7 text-slate-600">
-                서울 API와 기상, 교통, 모델 예측 결과가 실제 지도와 배차 판단으로 어떻게 이어지는지
-                한 화면에서 점검합니다.
+                서울 API와 기상, 교통, 모델 예측 결과가 실제 지도와 수요 관찰 우선순위로 어떻게
+                이어지는지 한 화면에서 점검합니다.
               </p>
             </div>
             <div className="min-w-[250px] rounded-lg border border-slate-200 bg-slate-50 p-4">
@@ -395,9 +406,11 @@ export default function DataPage() {
             </p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase text-slate-500">배차 최우선</p>
+            <p className="text-xs font-black uppercase text-slate-500">관찰 우선 동</p>
             <p className="mt-3 text-2xl font-black">{topDecision?.dong_name ?? "-"}</p>
-            <p className="mt-1 text-sm text-slate-500">{topDecision?.action ?? "-"}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              {monitoringActionLabel(topDecision?.action, topDecision?.action_level)}
+            </p>
           </div>
           <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
             <p className="text-xs font-black uppercase text-slate-500">예측 로그</p>
@@ -447,7 +460,7 @@ export default function DataPage() {
               <div>
                 <h2 className="text-lg font-black">API 운영 파이프라인</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  실시간 API 호출이 지도 색상과 배차 권고로 바뀌는 흐름입니다.
+                  실시간 API 호출이 지도 색상과 수요 관찰 우선순위로 바뀌는 흐름입니다.
                 </p>
               </div>
               <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-black text-emerald-700">
@@ -473,13 +486,13 @@ export default function DataPage() {
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <p className="text-xs font-black uppercase text-amber-700">판단에 쓰는 결과</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  수요 score와 공급 proxy를 결합해 배차 우선 동을 정렬합니다.
+                  수요 score와 도로 접근성 proxy를 결합해 관찰 우선 동을 정렬합니다.
                 </p>
               </div>
               <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
                 <p className="text-xs font-black uppercase text-emerald-700">발표에서 말할 수 있는 것</p>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  수집, 예측, 권고, 배포가 하나의 자동 파이프라인으로 연결됐습니다.
+                  수집, 예측, 관찰 우선순위, 배포가 하나의 자동 파이프라인으로 연결됐습니다.
                 </p>
               </div>
             </div>
@@ -508,7 +521,7 @@ export default function DataPage() {
               <h3 className="mt-2 text-2xl font-black">Live-compatible</h3>
               <p className="mt-3 text-sm leading-6 text-slate-700">
                 현재 시점에 만들 수 있는 캘린더, 공휴일, 날씨, 동 이름, 도로/건물/교통 인프라 feature만
-                사용합니다. 지도와 배차 권고는 이 계열의 모델/패턴으로 갱신됩니다.
+                사용합니다. 지도와 수요 관찰 우선순위는 이 계열의 모델/패턴으로 갱신됩니다.
               </p>
               <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
                 <div>
@@ -769,9 +782,10 @@ export default function DataPage() {
                   <dd className="mt-1 font-black">{formatKst(validation.latest_target_datetime)}</dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500">최근 배차 권고</dt>
+                  <dt className="text-slate-500">최근 관찰 우선</dt>
                   <dd className="mt-1 font-black">
-                    {validation.latest_dispatch_region ?? "-"} · {validation.latest_dispatch_action ?? "-"}
+                    {validation.latest_dispatch_region ?? "-"} ·{" "}
+                    {monitoringActionLabel(validation.latest_dispatch_action)}
                   </dd>
                 </div>
               </dl>
@@ -783,7 +797,8 @@ export default function DataPage() {
                       <span className="text-slate-500">{strategyLabel(entry.strategy)}</span>
                     </div>
                     <p className="mt-1 text-slate-500">
-                      {entry.top_region ?? "-"} 예측 · {entry.dispatch_region ?? "-"} {entry.dispatch_action ?? ""}
+                      {entry.top_region ?? "-"} 예측 · {entry.dispatch_region ?? "-"}{" "}
+                      {monitoringActionLabel(entry.dispatch_action)}
                     </p>
                   </div>
                 ))}
@@ -834,7 +849,7 @@ export default function DataPage() {
 
           <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
             <div className="border-b border-slate-200 px-5 py-4">
-              <h2 className="text-lg font-black">동적 배차 판단</h2>
+              <h2 className="text-lg font-black">수요 집중 모니터링</h2>
               <p className="mt-1 text-sm text-slate-500">{dispatch.policy ?? "-"}</p>
             </div>
             <div className="divide-y divide-slate-100">
@@ -846,7 +861,7 @@ export default function DataPage() {
                       <p className="mt-1 text-lg font-black">{decision.dong_name}</p>
                     </div>
                     <span className={`rounded-md border px-3 py-1 text-sm font-black ${actionTone(decision.action_level)}`}>
-                      {decision.action}
+                      {monitoringActionLabel(decision.action, decision.action_level)}
                     </span>
                   </div>
                   <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
@@ -855,11 +870,11 @@ export default function DataPage() {
                       <dd className="mt-1 font-black">{scoreLabel(decision.predicted_demand_score)}</dd>
                     </div>
                     <div>
-                      <dt className="text-slate-500">공급 proxy</dt>
+                      <dt className="text-slate-500">접근성 proxy</dt>
                       <dd className="mt-1 font-black">{scoreLabel(decision.supply_proxy_score)}</dd>
                     </div>
                     <div>
-                      <dt className="text-slate-500">권고 강도</dt>
+                      <dt className="text-slate-500">우선순위</dt>
                       <dd className="mt-1 font-black">{decision.coverage_units}</dd>
                     </div>
                     <div>

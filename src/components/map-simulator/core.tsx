@@ -916,7 +916,7 @@ export type HotspotVisual = {
 
 export const DEFAULT_DISPATCH_PRESENTATION: DispatchPlannerPresentation = {
   id: ACTIVE_DISPATCH_PLANNER_ID,
-  label: "수요 우선 배차",
+  label: "수요 우선 라우팅",
   routingLabel: "수요 우선 휴리스틱",
   routingDetail:
     "기본 경로는 shortest path를 쓰되, 승차/하차 포인트 우선순위는 planner 설정으로 분리해 둔 상태입니다.",
@@ -954,7 +954,7 @@ export const DISPATCH_PRESENTATIONS = new Map<string, DispatchPlannerPresentatio
     {
       ...DEFAULT_DISPATCH_PRESENTATION,
       id: "heuristic-default",
-      label: "기본 휴리스틱 배차",
+      label: "기본 휴리스틱 라우팅",
       routingLabel: "근접 우선 경로",
       routingDetail:
         "출발 지점에서 가까운 승차 후보를 고르고, 도로 그래프 위 shortest path로 경로를 확정합니다.",
@@ -965,7 +965,7 @@ export const DISPATCH_PRESENTATIONS = new Map<string, DispatchPlannerPresentatio
     {
       ...DEFAULT_DISPATCH_PRESENTATION,
       id: "demand-aware-v1",
-      label: "수요 우선 배차",
+      label: "수요 우선 라우팅",
       routingLabel: "수요 우선 휴리스틱",
       routingDetail:
         "shortest path를 유지하면서 승차/하차 후보 점수에 수요 편향을 섞는 현재 기본 planner입니다.",
@@ -1134,7 +1134,7 @@ export const LOCAL_SCENARIO_PRESETS: LocalScenarioPreset[] = [
       "행정동 범위, 도로 그래프, 기본 택시 흐름을 차분하게 소개할 때 쓰기 좋습니다.",
     speakerNotes: [
       "9개 실제 행정동과 OSM 도로를 기반으로 한 기본 디지털 트윈 장면입니다.",
-      "배차 실험 이전에 공간 구조와 기본 주행 흐름을 설명할 때 가장 안정적입니다.",
+      "수요 예측 이전에 공간 구조와 기본 주행 흐름을 설명할 때 가장 안정적입니다.",
     ],
     taxis: DEFAULT_TAXI_COUNT,
     traffic: DEFAULT_TRAFFIC_COUNT,
@@ -1156,7 +1156,7 @@ export const LOCAL_SCENARIO_PRESETS: LocalScenarioPreset[] = [
     summary:
       "퇴근 시간대 강남역 주변의 높은 도로 점유와 택시 대응을 설명하는 혼잡 장면입니다.",
     presentationNote:
-      "배차나 혼잡 대응 이야기를 꺼낼 때 가장 설명력이 좋은 프리셋입니다.",
+      "수요 집중이나 혼잡 대응 이야기를 꺼낼 때 가장 설명력이 좋은 프리셋입니다.",
     speakerNotes: [
       "강남역 퇴근 피크를 가정해 도로 점유와 택시 대응을 더 빽빽하게 보여줍니다.",
       "혼잡 구간에서 신호와 차량 흐름이 어떻게 읽히는지 설명하기 좋습니다.",

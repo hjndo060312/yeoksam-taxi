@@ -8,7 +8,7 @@ const sourceLinks = [
   {
     name: "TOPIS 교통정보 Open API",
     provider: "서울시 교통정보 시스템 TOPIS",
-    use: "도로 소통/링크 속도 기반 교통 혼잡도와 공급 proxy 계산",
+    use: "도로 소통/링크 속도 기반 교통 혼잡도와 접근성 proxy 계산",
     href: "https://topis.seoul.go.kr/refRoom/openRefRoom_4.do",
   },
   {
@@ -64,10 +64,10 @@ const modelCards = [
     text: "현재 시점에 만들 수 있는 시간, 요일, 공휴일, 날씨, 행정동, 정적 POI/도로/건물 feature만 사용합니다. 라이브 예측 루프는 이 모델을 우선 사용합니다.",
   },
   {
-    title: "Dispatch Priority Layer",
+    title: "Demand Monitoring Layer",
     badge: "Module 4",
-    metric: "수요 score - 공급 proxy",
-    text: "예측 수요와 실시간 도로 혼잡도 기반 공급 proxy를 결합해 동별 선제 이동 우선순위를 계산합니다.",
+    metric: "수요 score + 접근성 proxy",
+    text: "예측 수요와 실시간 도로 혼잡도 기반 접근성 proxy를 결합해 동별 수요 관찰 우선순위를 계산합니다.",
   },
 ];
 
@@ -82,7 +82,7 @@ const storySteps = [
   },
   {
     title: "지도에서 어떻게 쓰나",
-    text: "지도는 9개 동의 상대 수요 score, confidence, 실시간 혼잡도, 배차 우선순위를 보여줍니다. 목적은 정답 확정이 아니라 선제 판단입니다.",
+    text: "지도는 9개 동의 상대 수요 score, confidence, 실시간 혼잡도, 관찰 우선순위를 보여줍니다. 목적은 정답 확정이나 실제 배차 지시가 아니라 수요 집중 가능성 모니터링입니다.",
   },
 ];
 
@@ -116,9 +116,9 @@ const downloadLinks = [
     detail: "지도에서 쓰는 동별 수요 score와 confidence",
   },
   {
-    name: "최신 배차 우선순위 JSON",
+    name: "최신 수요 우선순위 JSON",
     href: "/dispatch-plan.json",
-    detail: "동별 imbalance score와 action level",
+    detail: "동별 수요압력 score와 monitoring action level",
   },
 ];
 
@@ -127,7 +127,7 @@ const artifactRows = [
   ["Live model", "data/processed/model_live_compatible/dong_demand_proxy_model.joblib", "1.1MB", "로컬 산출물"],
   ["Feature-set evaluation", "data/processed/model_feature_set_eval/demand_proxy_feature_set_eval.csv", "4KB", "다운로드 제공"],
   ["Latest forecast", "public/forecast/latest.json", "4KB", "다운로드 제공"],
-  ["Dispatch plan", "public/dispatch-plan.json", "8KB", "다운로드 제공"],
+  ["Demand priority", "public/dispatch-plan.json", "8KB", "다운로드 제공"],
 ];
 
 const slides = [

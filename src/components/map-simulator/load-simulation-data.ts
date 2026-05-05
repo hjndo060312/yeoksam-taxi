@@ -144,7 +144,7 @@ export async function loadSimulationData({
     throw new Error("No drivable routes available for vehicle simulation");
   }
 
-  onStageChange?.("배차 경로와 승차 포인트 준비 중", 65);
+  onStageChange?.("주행 경로와 수요 포인트 준비 중", 65);
 
   const hotspotPool = buildTaxiHotspots(
     taxiRoutePool,

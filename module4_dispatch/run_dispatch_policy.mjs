@@ -32,7 +32,7 @@ function actionFor(imbalance) {
   if (imbalance >= 0.45) {
     return {
       level: "high",
-      label: "선제 이동",
+      label: "수요 집중 매우 높음",
       coverage_units: 3,
       incentive_multiplier: 1.2,
     };
@@ -40,7 +40,7 @@ function actionFor(imbalance) {
   if (imbalance >= 0.25) {
     return {
       level: "medium",
-      label: "커버 보강",
+      label: "수요 집중 높음",
       coverage_units: 2,
       incentive_multiplier: 1.1,
     };
@@ -48,14 +48,14 @@ function actionFor(imbalance) {
   if (imbalance >= 0.1) {
     return {
       level: "watch",
-      label: "관찰",
+      label: "주의 관찰",
       coverage_units: 1,
       incentive_multiplier: 1.05,
     };
   }
   return {
     level: "low",
-    label: "유지",
+    label: "안정",
     coverage_units: 0,
     incentive_multiplier: 1.0,
   };
@@ -138,14 +138,14 @@ const decisions = (forecast.regions ?? [])
   .sort((left, right) => right.imbalance_score - left.imbalance_score);
 
 const output = {
-  source: "traffic_aware_dispatch_policy_v2",
+  source: "traffic_aware_demand_monitoring_priority_v2",
   generated_at: new Date().toISOString(),
   forecast_source: forecast.source ?? "model",
   forecast_target_datetime: forecast.target_datetime,
   forecast_strategy: forecast.strategy ?? null,
   traffic_source: traffic?.meta?.source ?? null,
   traffic_collected_at: traffic?.meta?.collected_at ?? null,
-  policy: "imbalance_score = predicted_demand_score - supply_proxy_score; coverage_units are dispatch priority bands, not taxi counts",
+  policy: "imbalance_score = predicted_demand_score - road_accessibility_proxy; priority_units are monitoring priority bands, not taxi counts",
   decisions,
 };
 

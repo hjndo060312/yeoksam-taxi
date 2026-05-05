@@ -99,7 +99,7 @@
       "public/dispatch-plan.json",
       "data/processed/live_validation/live_forecast_log.jsonl"
     ],
-    "dispatch_logic": "predicted demand score minus live traffic supply proxy"
+    "dispatch_logic": "predicted demand score minus road accessibility proxy; monitoring priority, not taxi dispatch"
   },
   "public_downloads": [
     "/data-catalog.json",
