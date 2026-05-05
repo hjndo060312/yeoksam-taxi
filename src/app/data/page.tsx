@@ -44,6 +44,8 @@ type DispatchDecision = {
   link_count?: number | null;
 };
 type DispatchPlanStatus = {
+  generated_at?: string | null;
+  traffic_collected_at?: string | null;
   policy?: string;
   decisions: DispatchDecision[];
 };
@@ -166,6 +168,34 @@ function formatKst(value: string | null | undefined) {
   }).format(date);
 }
 
+function minutesSince(value: string | null | undefined, now: Date) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return Math.max(0, Math.round((now.getTime() - date.getTime()) / 60000));
+}
+
+function ageLabel(minutes: number | null) {
+  if (minutes == null) return "시각 없음";
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0 ? `${hours}시간 전` : `${hours}시간 ${rest}분 전`;
+}
+
+function healthTone(status: "ok" | "watch" | "stale") {
+  if (status === "ok") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === "watch") return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-rose-200 bg-rose-50 text-rose-700";
+}
+
+function freshnessStatus(minutes: number | null, warnAfter: number, staleAfter: number) {
+  if (minutes == null) return { label: "확인 필요", status: "stale" as const };
+  if (minutes <= warnAfter) return { label: "정상", status: "ok" as const };
+  if (minutes <= staleAfter) return { label: "지연", status: "watch" as const };
+  return { label: "멈춤 가능", status: "stale" as const };
+}
+
 function populationLabel(place: { population_min: number; population_max: number }) {
   return `${place.population_min.toLocaleString("ko-KR")}~${place.population_max.toLocaleString("ko-KR")}`;
 }
@@ -228,6 +258,7 @@ function spearmanTone(value: number | null | undefined) {
 }
 
 export default function DataPage() {
+  const now = new Date();
   const places = summary.citydata.places;
   const decisions = dispatch.decisions.slice(0, 5);
   const featureRows = featureStatus.features.slice(0, 5);
@@ -242,6 +273,36 @@ export default function DataPage() {
   const validation2026Dongs = validation2026?.per_dong.slice(0, 9) ?? [];
   const topPopulation = summary.citydata.top_population;
   const topDecision = dispatch.decisions[0] ?? null;
+  const forecastAgeMinutes = minutesSince(forecast.generated_at, now);
+  const citydataAgeMinutes = minutesSince(summary.citydata.collected_at, now);
+  const dispatchAgeMinutes = minutesSince(dispatch.generated_at, now);
+  const validationAgeMinutes = minutesSince(validation.latest_generated_at, now);
+  const healthChecks = [
+    {
+      name: "예측 JSON",
+      timeLabel: ageLabel(forecastAgeMinutes),
+      detail: `${forecast.regions?.length ?? 0}개 동 · ${strategyLabel(forecast.strategy)}`,
+      ...freshnessStatus(forecastAgeMinutes, 90, 180),
+    },
+    {
+      name: "실시간 수집",
+      timeLabel: ageLabel(citydataAgeMinutes),
+      detail: `${summary.citydata.place_count}개 장소 · Citydata`,
+      ...freshnessStatus(citydataAgeMinutes, 90, 180),
+    },
+    {
+      name: "배차 권고",
+      timeLabel: ageLabel(dispatchAgeMinutes),
+      detail: `${dispatch.decisions.length}개 동 · ${topDecision?.action ?? "-"}`,
+      ...freshnessStatus(dispatchAgeMinutes, 90, 180),
+    },
+    {
+      name: "검증 로그",
+      timeLabel: ageLabel(validationAgeMinutes),
+      detail: `${validation.log_count}회 적재 · ${validation.latest_top_region ?? "-"}`,
+      ...freshnessStatus(validationAgeMinutes, 180, 360),
+    },
+  ];
   const pipelineStages = [
     {
       label: "1. 수집",
@@ -342,6 +403,41 @@ export default function DataPage() {
             <p className="text-xs font-black uppercase text-slate-500">예측 로그</p>
             <p className="mt-3 text-2xl font-black">{validation.log_count}회</p>
             <p className="mt-1 text-sm text-slate-500">누적 검증 대기</p>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
+            <div>
+              <h2 className="text-lg font-black">운영 헬스체크</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                자동 수집 루프가 살아있는지, JSON 산출물이 오래되지 않았는지 확인합니다.
+              </p>
+            </div>
+            <span className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-black text-slate-600">
+              build-time check
+            </span>
+          </div>
+          <div className="grid gap-3 px-5 py-5 sm:grid-cols-2 xl:grid-cols-4">
+            {healthChecks.map((check) => (
+              <article key={check.name} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase text-slate-500">{check.name}</p>
+                    <p className="mt-2 text-xl font-black text-slate-950">{check.timeLabel}</p>
+                  </div>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${healthTone(check.status)}`}>
+                    {check.label}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-slate-600">{check.detail}</p>
+              </article>
+            ))}
+          </div>
+          <div className="border-t border-slate-200 px-5 py-4 text-sm leading-6 text-slate-600">
+            이 영역이 <span className="font-black text-slate-900">지연</span> 또는{" "}
+            <span className="font-black text-slate-900">멈춤 가능</span>으로 바뀌면 GitHub Actions,
+            API 인증, Cloudflare 배포 중 하나를 먼저 확인하면 됩니다.
           </div>
         </section>
 
