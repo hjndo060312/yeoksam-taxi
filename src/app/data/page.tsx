@@ -29,7 +29,7 @@ function formatKst(value: string | null | undefined) {
   }).format(date);
 }
 
-function populationLabel(place: DataSummary["citydata"]["places"][number]) {
+function populationLabel(place: { population_min: number; population_max: number }) {
   return `${place.population_min.toLocaleString("ko-KR")}~${place.population_max.toLocaleString("ko-KR")}`;
 }
 
