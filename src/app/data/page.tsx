@@ -11,8 +11,32 @@ export const metadata: Metadata = {
   title: "데이터 현황 | A-Eye",
 };
 
-type DataSummary = typeof dataSummary;
 type DispatchPlan = typeof dispatchPlan;
+type ObservedValidation2026 = {
+  row_count: number;
+  dongs: string[];
+  date_range: {
+    start: string;
+    end: string;
+  };
+  overall: {
+    spearman_r: number | null;
+    per_dong_spearman_mean?: number | null;
+    pearson_r: number | null;
+  };
+  per_dong: Array<{
+    dong_name: string;
+    spearman_r: number | null;
+    spearman_p?: number | null;
+    row_count: number;
+    normalized_mape_pct: number | null;
+  }>;
+};
+type ModelObservability = Omit<typeof modelObservability, "observed_validation_2026"> & {
+  observed_validation_2026: ObservedValidation2026 | null;
+};
+
+const observability = modelObservability as unknown as ModelObservability;
 
 function formatKst(value: string | null | undefined) {
   if (!value) return "-";
@@ -93,9 +117,9 @@ export default function DataPage() {
   const forecast = forecastLatest;
   const models = modelSummary.models;
   const persistenceBaseline = modelSummary.baseline.persistence;
-  const topImportance = modelObservability.feature_importance.top_features.slice(0, 10);
-  const validation = modelObservability.live_validation;
-  const validation2026 = modelObservability.observed_validation_2026;
+  const topImportance = observability.feature_importance.top_features.slice(0, 10);
+  const validation = observability.live_validation;
+  const validation2026 = observability.observed_validation_2026;
   const validation2026Dongs = validation2026?.per_dong.slice(0, 9) ?? [];
   const topPopulation = dataSummary.citydata.top_population;
   const topDecision = dispatchPlan.decisions[0] ?? null;
@@ -321,7 +345,7 @@ export default function DataPage() {
                 </p>
               </div>
               <p className="text-sm text-slate-400">
-                {modelObservability.feature_importance.feature_count} features
+                {observability.feature_importance.feature_count} features
               </p>
             </div>
             <div className="space-y-4 px-5 py-5">
