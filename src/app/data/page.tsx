@@ -6,6 +6,7 @@ import modelObservability from "../../../public/model-observability.json";
 import modelSummary from "../../../public/model-summary.json";
 import type { Metadata } from "next";
 import Link from "next/link";
+import RefreshForecastControl from "./RefreshForecastControl";
 
 export const metadata: Metadata = {
   title: "데이터 현황 | A-Eye",
@@ -235,6 +236,28 @@ export default function DataPage() {
   const validation2026Dongs = validation2026?.per_dong.slice(0, 9) ?? [];
   const topPopulation = summary.citydata.top_population;
   const topDecision = dispatch.decisions[0] ?? null;
+  const pipelineStages = [
+    {
+      label: "1. 수집",
+      value: `${summary.citydata.place_count}개 장소`,
+      detail: "Citydata · KMA · TOPIS",
+    },
+    {
+      label: "2. 예측",
+      value: `${forecast.regions?.length ?? 0}개 동`,
+      detail: `${forecast.source === "demo" ? "데모" : "모델"} · ${strategyLabel(forecast.strategy)}`,
+    },
+    {
+      label: "3. 판단",
+      value: topDecision?.dong_name ?? "-",
+      detail: `${topDecision?.action ?? "-"} · 불균형 ${scoreLabel(topDecision?.imbalance_score)}`,
+    },
+    {
+      label: "4. 반영",
+      value: "Cloudflare",
+      detail: "지도 JSON 자동 배포",
+    },
+  ];
 
   return (
     <main className="h-screen overflow-y-auto bg-[#0b1020] text-slate-100">
@@ -295,6 +318,53 @@ export default function DataPage() {
             <p className="mt-3 text-2xl font-bold">{strategyLabel(forecast.strategy)}</p>
             <p className="mt-1 text-sm text-slate-300">{forecast.regions?.length ?? 0}개 동</p>
           </div>
+        </section>
+
+        <section className="grid grid-cols-[1.35fr_0.65fr] gap-5">
+          <div className="rounded-lg border border-white/10 bg-white/[0.04]">
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold">API 운영 파이프라인</h2>
+                <p className="mt-1 text-sm text-slate-400">
+                  실시간 API 호출이 지도 색상과 배차 권고로 바뀌는 흐름입니다.
+                </p>
+              </div>
+              <span className="rounded-md border border-emerald-300/35 bg-emerald-400/10 px-3 py-1 text-xs font-semibold text-emerald-100">
+                운영 자동화 연결
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-3 px-5 py-5">
+              {pipelineStages.map((stage) => (
+                <div key={stage.label} className="rounded-lg border border-white/10 bg-black/15 p-4">
+                  <p className="text-xs font-semibold uppercase text-slate-500">{stage.label}</p>
+                  <p className="mt-3 text-xl font-bold text-slate-100">{stage.value}</p>
+                  <p className="mt-1 text-sm text-slate-400">{stage.detail}</p>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3 border-t border-white/10 px-5 py-5">
+              <div className="rounded-lg border border-cyan-300/25 bg-cyan-400/10 p-4">
+                <p className="text-xs font-semibold uppercase text-cyan-200">지도에 보이는 결과</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  동별 수요 heatmap, 예측 소스 배지, 목표 시각이 자동 갱신됩니다.
+                </p>
+              </div>
+              <div className="rounded-lg border border-amber-300/25 bg-amber-400/10 p-4">
+                <p className="text-xs font-semibold uppercase text-amber-200">판단에 쓰는 결과</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  수요 score와 공급 proxy를 결합해 배차 우선 동을 정렬합니다.
+                </p>
+              </div>
+              <div className="rounded-lg border border-emerald-300/25 bg-emerald-400/10 p-4">
+                <p className="text-xs font-semibold uppercase text-emerald-200">발표에서 말할 수 있는 것</p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  수집, 예측, 권고, 배포가 하나의 자동 파이프라인으로 연결됐습니다.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <RefreshForecastControl />
         </section>
 
         <section className="rounded-lg border border-white/10 bg-white/[0.04]">
