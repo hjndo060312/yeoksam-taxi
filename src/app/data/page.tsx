@@ -189,18 +189,6 @@ function formatPct(value: number | null | undefined) {
   return typeof value === "number" ? `${value.toFixed(1)}%` : "-";
 }
 
-function modelNameLabel(name: string) {
-  if (name === "full_observed") return "Full 모델";
-  if (name === "live_compatible_calendar_weather_static") return "Live-compatible 모델";
-  return name;
-}
-
-function modelInterpretation(model: ModelRow) {
-  if ("uses" in model && Array.isArray(model.uses)) return model.uses.slice(0, 4).join(" · ");
-  if ("caveat" in model) return model.caveat;
-  return "-";
-}
-
 function featureLabel(feature: string) {
   const labels: Record<string, string> = {
     hour: "시간대",
@@ -223,12 +211,30 @@ function strategyLabel(strategy: string | null | undefined) {
   return strategy ?? "-";
 }
 
+function spearmanLabel(value: number | null | undefined) {
+  if (typeof value !== "number") return "-";
+  if (value >= 0.6) return "강한 동행";
+  if (value >= 0.4) return "방향성 확인";
+  if (value >= 0.25) return "약한 동행";
+  return "추가 검증 필요";
+}
+
+function spearmanTone(value: number | null | undefined) {
+  if (typeof value !== "number") return "border-slate-200 bg-slate-50 text-slate-600";
+  if (value >= 0.6) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (value >= 0.4) return "border-sky-200 bg-sky-50 text-sky-700";
+  if (value >= 0.25) return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-rose-200 bg-rose-50 text-rose-700";
+}
+
 export default function DataPage() {
   const places = summary.citydata.places;
   const decisions = dispatch.decisions.slice(0, 5);
   const featureRows = featureStatus.features.slice(0, 5);
   const forecast = forecastLatest;
   const models = modelStatus.models;
+  const fullModel = models.find((model) => model.name === "full_observed");
+  const liveModel = models.find((model) => model.name === "live_compatible_calendar_weather_static");
   const persistenceBaseline = modelStatus.baseline.persistence;
   const topImportance = observability.feature_importance.top_features.slice(0, 10);
   const validation = observability.live_validation;
@@ -389,62 +395,118 @@ export default function DataPage() {
         <section className="rounded-lg border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 px-5 py-4">
             <div>
-              <h2 className="text-lg font-black">모델 검증 요약</h2>
+              <h2 className="text-lg font-black">모델 검증은 이렇게 읽습니다</h2>
               <p className="mt-1 text-sm text-slate-500">
-                발표용 수치는 재현 가능한 public/model-summary.json 기준입니다.
+                높은 R² 하나로 “택시 호출량을 맞췄다”는 뜻이 아닙니다. 오프라인 상한선, 실제 운영 모델,
+                단순 기준선을 분리해서 봅니다.
               </p>
             </div>
             <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-right text-sm text-slate-700">
-              <p className="font-black">Persistence baseline</p>
-              <p className="mt-1">
-                R² {formatMetric(persistenceBaseline.metrics.r2)} · MAPE{" "}
-                {formatPct(persistenceBaseline.metrics.mape_pct)}
-              </p>
+              <p className="font-black">예측 대상</p>
+              <p className="mt-1">1시간 뒤 이동 수요 proxy</p>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[960px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-                <tr className="border-b border-slate-200">
-                  <th className="px-5 py-3 font-black">모델</th>
-                  <th className="px-5 py-3 font-black">역할</th>
-                  <th className="px-5 py-3 font-black">Feature</th>
-                  <th className="px-5 py-3 font-black">R²</th>
-                  <th className="px-5 py-3 font-black">MAPE</th>
-                  <th className="px-5 py-3 font-black">라이브</th>
-                  <th className="px-5 py-3 font-black">해석</th>
-                </tr>
-              </thead>
-              <tbody>
-                {models.map((model) => (
-                  <tr key={model.name} className="border-b border-slate-100 last:border-0">
-                    <td className="px-5 py-3 font-black text-slate-900">{modelNameLabel(model.name)}</td>
-                    <td className="px-5 py-3 text-slate-600">{model.role}</td>
-                    <td className="px-5 py-3 text-slate-600">{model.feature_count}개</td>
-                    <td className="px-5 py-3 font-black text-sky-700">
-                      {formatMetric(model.metrics.r2)}
-                    </td>
-                    <td className="px-5 py-3 font-black text-sky-700">
-                      {formatPct(model.metrics.mape_pct)}
-                    </td>
-                    <td className="px-5 py-3">
-                      <span
-                        className={`rounded-md border px-3 py-1 text-xs font-semibold ${
-                          model.live_usable
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : "border-rose-200 bg-rose-50 text-rose-700"
-                        }`}
-                      >
-                        {model.live_usable ? "가능" : "불가"}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-slate-600">
-                      {modelInterpretation(model)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="grid gap-4 px-5 py-5 lg:grid-cols-3">
+            <article className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+              <p className="text-xs font-black uppercase text-emerald-700">실제 지도에 쓰는 모델</p>
+              <h3 className="mt-2 text-2xl font-black">Live-compatible</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                현재 시점에 만들 수 있는 캘린더, 공휴일, 날씨, 동 이름, 도로/건물/교통 인프라 feature만
+                사용합니다. 지도와 배차 권고는 이 계열의 모델/패턴으로 갱신됩니다.
+              </p>
+              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-slate-500">Backtest R²</dt>
+                  <dd className="mt-1 text-xl font-black text-emerald-800">
+                    {formatMetric(liveModel?.metrics.r2)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">MAPE</dt>
+                  <dd className="mt-1 text-xl font-black text-emerald-800">
+                    {formatPct(liveModel?.metrics.mape_pct)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Feature</dt>
+                  <dd className="mt-1 font-black">{liveModel?.feature_count ?? "-"}개</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">라이브</dt>
+                  <dd className="mt-1 font-black">가능</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article className="rounded-lg border border-sky-200 bg-sky-50 p-5">
+              <p className="text-xs font-black uppercase text-sky-700">연구용 상한선</p>
+              <h3 className="mt-2 text-2xl font-black">Full 모델</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                대중교통 OD와 생활인구처럼 사후 공개되는 관측 feature까지 포함합니다. 모델 구조가
+                수요 패턴을 학습할 수 있는지 보는 상한선이라 라이브 성능으로 말하면 안 됩니다.
+              </p>
+              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-slate-500">Backtest R²</dt>
+                  <dd className="mt-1 text-xl font-black text-sky-800">
+                    {formatMetric(fullModel?.metrics.r2)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">MAPE</dt>
+                  <dd className="mt-1 text-xl font-black text-sky-800">
+                    {formatPct(fullModel?.metrics.mape_pct)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">Feature</dt>
+                  <dd className="mt-1 font-black">{fullModel?.feature_count ?? "-"}개</dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">라이브</dt>
+                  <dd className="mt-1 font-black text-rose-700">불가</dd>
+                </div>
+              </dl>
+            </article>
+
+            <article className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+              <p className="text-xs font-black uppercase text-slate-500">단순 기준선</p>
+              <h3 className="mt-2 text-2xl font-black">Persistence</h3>
+              <p className="mt-3 text-sm leading-6 text-slate-700">
+                “현재 시간이 높으면 다음 시간도 높다”는 단순 예측입니다. 모델은 이 기준선보다 나아야
+                의미가 있고, 발표에서는 이 비교가 설득 포인트입니다.
+              </p>
+              <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <dt className="text-slate-500">Baseline R²</dt>
+                  <dd className="mt-1 text-xl font-black text-slate-900">
+                    {formatMetric(persistenceBaseline.metrics.r2)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-slate-500">MAPE</dt>
+                  <dd className="mt-1 text-xl font-black text-slate-900">
+                    {formatPct(persistenceBaseline.metrics.mape_pct)}
+                  </dd>
+                </div>
+              </dl>
+            </article>
+          </div>
+          <div className="border-t border-slate-200 px-5 py-4">
+            <div className="grid gap-3 text-sm lg:grid-cols-3">
+              <p className="rounded-lg border border-slate-200 bg-white p-3 leading-6 text-slate-600">
+                <span className="font-black text-slate-900">R²</span>는 과거 데이터에서 시간대별 변동을
+                얼마나 설명했는지 보는 지표입니다.
+              </p>
+              <p className="rounded-lg border border-slate-200 bg-white p-3 leading-6 text-slate-600">
+                <span className="font-black text-slate-900">MAPE</span>는 평균 비율 오차입니다. proxy 값이
+                작을 때 커질 수 있어 보조 지표로 봅니다.
+              </p>
+              <p className="rounded-lg border border-slate-200 bg-white p-3 leading-6 text-slate-600">
+                <span className="font-black text-slate-900">라이브 정확도</span>는 예측 로그와 사후 관측
+                proxy가 쌓일수록 계속 재검증합니다.
+              </p>
+            </div>
           </div>
         </section>
 
@@ -454,7 +516,7 @@ export default function DataPage() {
               <div>
                 <h2 className="text-lg font-black">2026 실측 대중교통 검증</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  예측 proxy와 2026년 3~4월 실제 버스+지하철 승차량을 동별 z-score로 비교
+                  예측 proxy와 2026년 3~4월 실제 버스+지하철 승차량이 같은 시간대 흐름을 보이는지 비교합니다.
                 </p>
               </div>
               <div className="text-right text-sm text-slate-500">
@@ -472,17 +534,21 @@ export default function DataPage() {
                     <p className="mt-2 text-3xl font-black">
                       {formatMetric(validation2026.overall.spearman_r, 3)}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">rank correlation</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {spearmanLabel(validation2026.overall.spearman_r)}
+                    </p>
                   </div>
                   <div className="rounded-md border border-emerald-200 bg-emerald-50 p-4">
                     <p className="text-xs font-black uppercase text-emerald-700">동별 평균</p>
                     <p className="mt-2 text-3xl font-black">
                       {formatMetric(validation2026.overall.per_dong_spearman_mean, 3)}
                     </p>
-                    <p className="mt-1 text-sm text-slate-500">mean Spearman</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {spearmanLabel(validation2026.overall.per_dong_spearman_mean)}
+                    </p>
                   </div>
                   <div className="rounded-md border border-slate-200 bg-slate-50 p-4">
-                    <p className="text-xs font-black uppercase text-slate-500">Pearson</p>
+                    <p className="text-xs font-black uppercase text-slate-500">Pearson 보조 지표</p>
                     <p className="mt-2 text-2xl font-black">
                       {formatMetric(validation2026.overall.pearson_r, 3)}
                     </p>
@@ -495,7 +561,8 @@ export default function DataPage() {
                 </div>
                 <p className="mt-4 text-sm leading-6 text-slate-600">
                   예측값은 이동 수요 proxy이고 실측값은 raw 승차량이라 단위가 다릅니다. 그래서 절대값보다
-                  같은 동 안에서 시간대 순위가 함께 움직이는지를 Spearman으로 봅니다.
+                  같은 동 안에서 시간대 순위가 함께 움직이는지를 Spearman으로 봅니다. 0.4대는 완벽한
+                  적중이 아니라, 공개 proxy만으로도 방향성이 일부 잡힌다는 의미입니다.
                 </p>
               </div>
               <div className="overflow-x-auto">
@@ -505,7 +572,7 @@ export default function DataPage() {
                       <th className="px-4 py-3 font-black">동</th>
                       <th className="px-4 py-3 font-black">Spearman</th>
                       <th className="px-4 py-3 font-black">Rows</th>
-                      <th className="px-4 py-3 font-black">MAPE</th>
+                      <th className="px-4 py-3 font-black">해석</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -526,7 +593,11 @@ export default function DataPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3 text-slate-600">{row.row_count.toLocaleString("ko-KR")}</td>
-                        <td className="px-4 py-3 text-slate-500">{formatPct(row.normalized_mape_pct)}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-md border px-2.5 py-1 text-xs font-black ${spearmanTone(row.spearman_r)}`}>
+                            {spearmanLabel(row.spearman_r)}
+                          </span>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
