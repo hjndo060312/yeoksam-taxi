@@ -30,13 +30,14 @@ npm run data:features:dong-hour
 npm run model:evaluate:feature-sets
 npm run model:train:live-compatible
 npm run model:build-pattern-cache
+npm run model:train:traffic-forecast
 npm run model:live:demand-cycle
 ```
 
 For the live/demo path, `npm run model:live:demand-cycle` is the preferred
 single command after model training. It refreshes the public feature snapshot,
-forecast JSON, dispatch plan, data summary, and validation log from the latest
-available live inputs.
+movement-demand forecast JSON, road traffic forecast JSON, data summary, and
+validation logs from the latest available live inputs.
 
 For a presentation-safe local loop, run:
 
@@ -73,11 +74,53 @@ The dashboard should read small public summaries, not all raw samples:
 - `public/data-summary.json`
 - `public/feature-snapshot.json`
 - `public/forecast/latest.json`
-- `public/dispatch-plan.json`
+- `public/traffic-forecast/latest.json`
+- `public/traffic-forecast-comparison.json`
 - `public/metro-station-activity.json`
 - `public/model-observability.json`
 
 This keeps the repository light while still making the data flow inspectable.
+
+## GitHub Actions Automation
+
+The repository separates **live prediction** from **model retraining**:
+
+- `.github/workflows/forecast-cron.yml`
+  - runs hourly when `ENABLE_FORECAST_CRON=true`.
+  - collects current Seoul citydata and weather through API keys.
+  - builds the latest feature snapshot.
+  - runs the already-trained demand proxy and road traffic forecast models.
+  - writes small public JSON outputs for the dashboard and deploys Cloudflare.
+
+- `.github/workflows/citydata-history.yml`
+  - runs every 10 minutes when `ENABLE_CITYDATA_HISTORY=true`.
+  - stores raw citydata snapshots as GitHub Actions artifacts.
+  - useful for later short-interval congestion validation and retraining.
+
+- `.github/workflows/retrain-models.yml`
+  - runs manually or weekly when `ENABLE_MODEL_RETRAIN=true`.
+  - retrains model artifacts only when the training tables are available.
+
+Training tables are intentionally not committed:
+
+- `data/processed/features/dong_hour_features_v2_2023-01_2025-12.csv` is about 77MB.
+- `data/processed/topis/topis_dong_hourly_2023-01_2026-03.csv` is about 21MB.
+
+For GitHub-hosted retraining, provide downloadable URLs as repository secrets:
+
+- `LIVE_FEATURE_TABLE_URL`
+- `TOPIS_TRAFFIC_TABLE_URL`
+
+The hourly prediction workflow can also restore model artifacts from URL
+secrets if they are not committed:
+
+- `LIVE_MODEL_URL`
+- `LIVE_PATTERN_CACHE_URL`
+- `TRAFFIC_MODEL_URL`
+- `TRAFFIC_PATTERN_CACHE_URL`
+
+Hourly prediction is inference. Retraining is model improvement. They are kept
+as separate workflows so a failed retrain cannot block the live dashboard.
 
 ## Seoul Metro Station-Hour Data
 

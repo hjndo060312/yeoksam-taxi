@@ -194,6 +194,11 @@ if (weatherPath) {
 }
 
 await runStep("forecast", "python3", forecastArgs);
+await runStep("traffic-forecast", "python3", [
+  "scripts/predict_traffic_forecast.py",
+  targetDatetime,
+]);
+await runStep("traffic-comparison", "node", ["scripts/build-traffic-forecast-comparison.mjs"]);
 await runStep("dispatch", "node", ["module4_dispatch/run_dispatch_policy.mjs"]);
 await runStep("data-summary", "node", ["scripts/build-data-summary.mjs"]);
 
@@ -240,6 +245,7 @@ const latestPath = path.join(liveValidationDir, "latest.json");
 const logPath = path.join(liveValidationDir, "live_forecast_log.jsonl");
 await writeFile(latestPath, `${JSON.stringify(logEntry, null, 2)}\n`);
 await appendFile(logPath, `${JSON.stringify(logEntry)}\n`);
+await runStep("live-comparison", "node", ["scripts/build-live-forecast-comparison.mjs"]);
 await runStep("model-observability", "node", ["scripts/build-model-observability.mjs"]);
 
 console.log(`\nWrote ${path.relative(projectRoot, latestPath)}`);

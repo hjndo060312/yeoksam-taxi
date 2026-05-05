@@ -20,11 +20,11 @@ export const LARGE_LOW_RISE_BUILDING_AREA_M2 = 12_000;
 export const LARGE_LOW_RISE_BUILDING_MAX_HEIGHT_M = 20;
 
 // Signal and curbside tuning keeps intersections readable without simulating every lane.
-export const SIGNAL_RADIUS = 7;
+export const SIGNAL_RADIUS = 5;
 export const SIGNAL_CYCLE = 24;
-export const SIGNAL_CLUSTER_DISTANCE = 18;
-export const SIGNAL_ROAD_SNAP_DISTANCE = 14;
-export const SIGNAL_NODE_SNAP_DISTANCE = 16;
+export const SIGNAL_CLUSTER_DISTANCE = 12;
+export const SIGNAL_ROAD_SNAP_DISTANCE = 8;
+export const SIGNAL_NODE_SNAP_DISTANCE = 10;
 export const SIGNAL_COORDINATION_BAND_SIZE = 14;
 export const SIGNAL_COORDINATION_PHASE_STEP = 1.35;
 export const SIGNAL_WAVE_TRAVEL_SPEED = 6.4;

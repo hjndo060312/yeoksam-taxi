@@ -91,6 +91,26 @@ export type SignalPhase =
   | "ped_flash"
   | "clearance";
 
+export type TrafficForecastRegion = {
+  dong_name: string;
+  predicted_traffic_volume_proxy: number;
+  predicted_traffic_volume_score: number;
+  predicted_congestion_score: number;
+  predicted_avg_speed_kmh: number;
+  current_congestion_score: number | null;
+  current_avg_speed_kmh: number | null;
+  current_link_count: number | null;
+};
+
+export type TrafficForecastStatus = {
+  generated_at: string | null;
+  target_datetime: string | null;
+  feature_datetime: string | null;
+  model_target: string;
+  note: string;
+  regions: TrafficForecastRegion[];
+};
+
 export type RoadProperties = {
   roadClass: "arterial" | "connector" | "local";
   width: number;
@@ -264,6 +284,7 @@ export type SignalData = {
   visualPoint: THREE.Vector3;
   offset: number;
   approaches: SignalDirection[];
+  approachYaws: Record<SignalDirection, number>;
   hasProtectedLeft: boolean;
   priorityAxis: SignalAxis;
   timingPlan: SignalTimingPlan;
@@ -466,6 +487,7 @@ export type SimulationData = {
   roadNetwork: SerializedRoadNetwork | null;
   graph: RoadGraph;
   signals: SignalData[];
+  trafficForecast: TrafficForecastStatus | null;
   loopRoutes: RouteTemplate[];
   taxiRoutePool: RouteTemplate[];
   trafficRoutePool: RouteTemplate[];
@@ -2153,6 +2175,19 @@ export function offsetToRight(
   return position.clone().addScaledVector(right, offset);
 }
 
+export function signalVectorForDirection(direction: SignalDirection) {
+  switch (direction) {
+    case "north":
+      return new THREE.Vector3(0, 0, -1);
+    case "south":
+      return new THREE.Vector3(0, 0, 1);
+    case "east":
+      return new THREE.Vector3(1, 0, 0);
+    default:
+      return new THREE.Vector3(-1, 0, 0);
+  }
+}
+
 export function curbsideLaneOffset(route: Pick<RouteTemplate, "roadWidth" | "laneOffset">) {
   const edgeInset = THREE.MathUtils.clamp(
     route.roadWidth * 0.16,
@@ -2470,6 +2505,12 @@ export function createSignalData(
   approaches: SignalDirection[],
   hasProtectedLeft: boolean,
   visualPoint: THREE.Vector3 = point,
+  approachYaws: Record<SignalDirection, number> = {
+    north: 0,
+    south: Math.PI,
+    east: Math.PI / 2,
+    west: -Math.PI / 2,
+  },
 ): Omit<SignalData, "offset"> {
   const priorityAxis = preferredSignalAxisForApproaches(approaches, point);
   return {
@@ -2478,6 +2519,7 @@ export function createSignalData(
     point,
     visualPoint,
     approaches,
+    approachYaws,
     hasProtectedLeft,
     priorityAxis,
     timingPlan: buildSignalTimingPlan(
@@ -3739,22 +3781,42 @@ export function buildSignalsFromOsm(
       return;
     }
 
-    const approaches = Array.from(
-      new Set(
-        nearbySegmentsForSignal.flatMap((segment) => {
-          const directions: SignalDirection[] = [];
-          const startVector = segment.start.clone().sub(anchorNode.point);
-          const endVector = segment.end.clone().sub(anchorNode.point);
-          if (startVector.lengthSq() > 9) {
-            directions.push(signalDirectionForVector(startVector));
-          }
-          if (endVector.lengthSq() > 9) {
-            directions.push(signalDirectionForVector(endVector));
-          }
-          return directions;
-        }),
-      ),
+    const approachYaws: Record<SignalDirection, number> = {
+      north: 0,
+      south: Math.PI,
+      east: Math.PI / 2,
+      west: -Math.PI / 2,
+    };
+    const directionsByAxis = new Map<SignalDirection, SignalDirection[]>();
+
+    nearbySegmentsForSignal.forEach((segment) => {
+      const startVector = segment.start.clone().sub(anchorNode.point);
+      const endVector = segment.end.clone().sub(anchorNode.point);
+
+      if (startVector.lengthSq() > 9) {
+        const dir = signalDirectionForVector(startVector);
+        approachYaws[dir] = Math.atan2(startVector.x, startVector.z);
+      }
+      if (endVector.lengthSq() > 9) {
+        const dir = signalDirectionForVector(endVector);
+        approachYaws[dir] = Math.atan2(endVector.x, endVector.z);
+      }
+    });
+
+    const approaches = (Object.keys(approachYaws) as SignalDirection[]).filter(
+      (dir) => {
+        const vector = signalVectorForDirection(dir);
+        return nearbySegmentsForSignal.some((s) => {
+          const v1 = s.start.clone().sub(anchorNode.point);
+          const v2 = s.end.clone().sub(anchorNode.point);
+          return (
+            (v1.lengthSq() > 9 && signalDirectionForVector(v1) === dir) ||
+            (v2.lengthSq() > 9 && signalDirectionForVector(v2) === dir)
+          );
+        });
+      },
     );
+
     const axisCount = new Set(
       approaches.map((approach) => signalAxisForDirection(approach)),
     ).size;
@@ -3781,6 +3843,8 @@ export function buildSignalsFromOsm(
         anchorNode.point.clone(),
         approaches,
         hasProtectedLeft,
+        clusterPoint.clone(), /* Use actual OSM centroid for visuals */
+        approachYaws,
       ),
       score,
     };

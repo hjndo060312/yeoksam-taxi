@@ -421,79 +421,79 @@ export function buildEnvironmentState(
   );
   const neutralGroundColor =
     weatherMode === "heavy-snow"
-      ? 0x4b5057
+      ? 0xf1f5f9
       : weatherMode === "heavy-rain"
-        ? 0x191c20
-        : 0x202327;
+        ? 0xe2e8f0
+        : 0xf8fafc; /* Clean Off-white Ground */
   const roadBaseColors =
     weatherMode === "heavy-snow"
       ? {
-        arterial: 0x72797f,
-        connector: 0x666c72,
-        local: 0x5b6167,
+        arterial: 0xffffff,
+        connector: 0xf1f5f9,
+        local: 0xe2e8f0,
       }
       : weatherMode === "heavy-rain"
         ? {
-          arterial: 0x484e54,
-          connector: 0x414649,
-          local: 0x393d41,
+          arterial: 0xccddee,
+          connector: 0xbbccdd,
+          local: 0xaabbcc,
         }
         : {
-          arterial: 0x60676d,
-          connector: 0x545a60,
-          local: 0x484e54,
+          arterial: 0xffffff, /* Bright White Roads */
+          connector: 0xf1f5f9,
+          local: 0xe2e8f0,
         };
   const lightingPreset =
     weatherMode === "clear"
       ? {
-        ambientColor: 0xf4f8ff,
-        ambientIntensity: 0.72,
-        hemiSkyColor: 0xdce9ff,
-        hemiGroundColor: 0x415468,
-        hemiIntensity: 0.84,
-        sunColor: 0xfffbf2,
-        sunIntensity: 0.88,
-        fogNear: 160,
-        fogFar: 460,
-        exposure: 1.04,
+        ambientColor: 0xffffff,
+        ambientIntensity: 1.25,
+        hemiSkyColor: 0xffffff,
+        hemiGroundColor: 0x8899aa,
+        hemiIntensity: 1.1,
+        sunColor: 0xffffff,
+        sunIntensity: 1.2,
+        fogNear: 250,
+        fogFar: 800,
+        exposure: 1.15,
       }
       : weatherMode === "cloudy"
         ? {
-          ambientColor: 0xe7eef7,
-          ambientIntensity: 0.69,
-          hemiSkyColor: 0xc8d5e3,
-          hemiGroundColor: 0x3d4d60,
-          hemiIntensity: 0.78,
-          sunColor: 0xf8fbff,
-          sunIntensity: 0.8,
-          fogNear: 138,
-          fogFar: 392,
-          exposure: 1.01,
+          ambientColor: 0xffffff,
+          ambientIntensity: 1.15,
+          hemiSkyColor: 0xeef2f7,
+          hemiGroundColor: 0x778899,
+          hemiIntensity: 1.05,
+          sunColor: 0xffffff,
+          sunIntensity: 1.0,
+          fogNear: 200,
+          fogFar: 600,
+          exposure: 1.1,
         }
         : weatherMode === "heavy-rain"
           ? {
-            ambientColor: 0xe1e9f2,
-            ambientIntensity: 0.66,
-            hemiSkyColor: 0xbac9db,
-            hemiGroundColor: 0x334153,
-            hemiIntensity: 0.74,
-            sunColor: 0xf0f4fa,
-            sunIntensity: 0.72,
-            fogNear: 124,
-            fogFar: 350,
-            exposure: 0.98,
+            ambientColor: 0xccddee,
+            ambientIntensity: 1.0,
+            hemiSkyColor: 0x99aabb,
+            hemiGroundColor: 0x556677,
+            hemiIntensity: 0.95,
+            sunColor: 0xccddee,
+            sunIntensity: 0.8,
+            fogNear: 150,
+            fogFar: 450,
+            exposure: 1.05,
           }
           : {
-            ambientColor: 0xf0f6fb,
-            ambientIntensity: 0.74,
-            hemiSkyColor: 0xdbe6f1,
-            hemiGroundColor: 0x47586b,
-            hemiIntensity: 0.82,
-            sunColor: 0xf8fbff,
-            sunIntensity: 0.82,
-            fogNear: 132,
-            fogFar: 362,
-            exposure: 1,
+            ambientColor: 0xffffff,
+            ambientIntensity: 1.2,
+            hemiSkyColor: 0xffffff,
+            hemiGroundColor: 0x99aabb,
+            hemiIntensity: 1.1,
+            sunColor: 0xffffff,
+            sunIntensity: 1.1,
+            fogNear: 180,
+            fogFar: 500,
+            exposure: 1.1,
           };
 
   return {
@@ -502,35 +502,28 @@ export function buildEnvironmentState(
     fogNear: lightingPreset.fogNear,
     fogFar: lightingPreset.fogFar,
     ambientColor: lightingPreset.ambientColor,
-    ambientIntensity: lightingPreset.ambientIntensity + (1 - daylight) * 0.05,
+    ambientIntensity: 0.28, /* Lowered from 0.4 for comfort */
     hemiSkyColor: lightingPreset.hemiSkyColor,
     hemiGroundColor: lightingPreset.hemiGroundColor,
-    hemiIntensity: lightingPreset.hemiIntensity + (1 - daylight) * 0.04,
+    hemiIntensity: 0.15,
     sunColor: lightingPreset.sunColor,
-    sunIntensity: THREE.MathUtils.lerp(
-      lightingPreset.sunIntensity * 0.42,
-      lightingPreset.sunIntensity,
-      readableNightLight,
-    ),
+    sunIntensity: 0.65, /* Toned down */
     sunPosition: solarDirection.multiplyScalar(190),
-    groundColor: neutralGroundColor,
+    groundColor: 0xd1d5db, /* Soft Grey Ground */
     roadColors: {
-      arterial: scaleHexColor(roadBaseColors.arterial, 1 - cloudCover * 0.04),
-      connector: scaleHexColor(roadBaseColors.connector, 1 - cloudCover * 0.04),
-      local: scaleHexColor(roadBaseColors.local, 1 - cloudCover * 0.03),
+      arterial: 0xbcc4d1,
+      connector: 0xc9d1db,
+      local: 0xd9e1e8,
     },
     roadRoughness:
       weatherMode === "heavy-rain"
-        ? 0.84
-        : weatherMode === "heavy-snow"
-          ? 0.9
-          : 0.97,
+        ? 0.12
+        : 0.82,
     roadMetalness:
       weatherMode === "heavy-rain"
         ? 0.08
-        : weatherMode === "heavy-snow"
-          ? 0.03
-          : 0.01,
+        : 0.01,
+    buildingTint: 0xf1f5f9, /* Soft Light Grey Building */
     laneMarkerColor: weatherMode === "heavy-snow" ? 0xf0f2f4 : 0xd9d1bd,
     laneMarkerEmissive:
       daylight < 0.22
@@ -546,19 +539,8 @@ export function buildEnvironmentState(
     stopLineColor: weatherMode === "heavy-snow" ? 0xf0f2f4 : 0xd5d9dd,
     stopLineEmissive: daylight < 0.2 ? 0x262d36 : 0x181c22,
     stopLineIntensity: daylight < 0.2 ? 0.08 : 0.03,
-    buildingTint:
-      weatherMode === "heavy-snow"
-        ? 0xd7dbe0
-        : weatherMode === "heavy-rain"
-          ? 0xc7ccd1
-          : 0xd0d4d9,
-    buildingEmissive: mixHexColor(
-      0x15191d,
-      0x2f3a46,
-      nightBuildingFactor * 0.22 + twilight * 0.08,
-    ),
-    buildingEmissiveIntensity:
-      0.05 + twilight * 0.03 + nightBuildingFactor * 0.08,
+    buildingEmissive: 0xffffff,
+    buildingEmissiveIntensity: 0.03, /* Subtle constant highlight */
     precipitation:
       weatherMode === "heavy-rain"
         ? "rain"

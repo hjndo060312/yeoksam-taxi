@@ -22,6 +22,7 @@ import {
   deserializeRoadGraph,
   featureCollectionCenter,
   fetchGeoJsonAsset,
+  fetchJsonAsset,
   fetchOptionalGeoJsonAsset,
   fetchRoadNetworkAsset,
   type BuildingFeatureCollection,
@@ -29,6 +30,7 @@ import {
   type NonRoadFeatureCollection,
   type RoadFeatureCollection,
   type SimulationData,
+  type TrafficForecastStatus,
   type TrafficSignalFeatureCollection,
   type TransitFeatureCollection,
 } from "@/components/map-simulator/core";
@@ -38,12 +40,23 @@ type LoadSimulationDataOptions = {
   onStageChange?: (detail: string, progress: number) => void;
 };
 
+async function fetchTrafficForecastAsset(path: string) {
+  try {
+    return await fetchJsonAsset<TrafficForecastStatus>(path, (data) =>
+      Array.isArray(data.regions) ? data.regions.length : 0,
+    );
+  } catch (error) {
+    console.warn("Skipping optional traffic-forecast asset.", error);
+    return null;
+  }
+}
+
 export async function loadSimulationData({
   onAssetProgress,
   onStageChange,
 }: LoadSimulationDataOptions = {}): Promise<SimulationData> {
   let assetsLoaded = 0;
-  const totalAssets = 7;
+  const totalAssets = 8;
   const trackAsset = async <T,>(promise: Promise<T>) => {
     const result = await promise;
     assetsLoaded += 1;
@@ -59,6 +72,7 @@ export async function loadSimulationData({
     transitAsset,
     trafficSignalsAsset,
     roadNetworkAsset,
+    trafficForecastAsset,
   ] = await Promise.all([
     trackAsset(
       fetchOptionalGeoJsonAsset<NonRoadFeatureCollection>(
@@ -77,6 +91,7 @@ export async function loadSimulationData({
       ),
     ),
     trackAsset(fetchRoadNetworkAsset("/road-network.json")),
+    trackAsset(fetchTrafficForecastAsset("/traffic-forecast/latest.json")),
   ]);
 
   onStageChange?.("도로 세그먼트와 공간 인덱스 준비 중", 50);
@@ -89,6 +104,8 @@ export async function loadSimulationData({
   const trafficSignals =
     trafficSignalsAsset?.data ?? EMPTY_TRAFFIC_SIGNAL_FEATURE_COLLECTION;
   const roadNetwork = roadNetworkAsset?.data ?? null;
+  const trafficForecast = trafficForecastAsset?.data ?? null;
+
   const assetTimes = [
     nonRoadAsset?.meta.lastModified ?? null,
     roadsAsset.meta.lastModified,
@@ -173,6 +190,7 @@ export async function loadSimulationData({
     roadNetwork,
     graph,
     signals,
+    trafficForecast,
     loopRoutes,
     taxiRoutePool,
     trafficRoutePool,

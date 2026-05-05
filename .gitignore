@@ -56,6 +56,11 @@ __pycache__/
 !/data/processed/model_live_compatible/dong_demand_proxy_live_feature_importance.json
 !/data/processed/model_live_compatible/dong_demand_proxy_live_metrics.json
 !/data/processed/model_live_compatible/validation_2026_q1.json
+!/data/processed/model_traffic_forecast/
+/data/processed/model_traffic_forecast/*
+!/data/processed/model_traffic_forecast/traffic_forecast_model.joblib
+!/data/processed/model_traffic_forecast/traffic_pattern_cache.json
+!/data/processed/model_traffic_forecast/traffic_forecast_metrics.json
 
 # env files (can opt-in for committing if needed)
 .env*

@@ -82,7 +82,7 @@ const storySteps = [
   },
   {
     title: "지도에서 어떻게 쓰나",
-    text: "지도는 9개 동의 상대 수요 score, confidence, 실시간 혼잡도, 관찰 우선순위를 보여줍니다. 목적은 정답 확정이나 실제 배차 지시가 아니라 수요 집중 가능성 모니터링입니다.",
+    text: "지도는 9개 동의 상대 수요 score, confidence, 실시간 혼잡도, 1시간 뒤 도로 교통량/혼잡도 예측을 보여줍니다. 목적은 실제 배차 지시가 아니라 공개 proxy 기반 미래 교통 상태 모니터링입니다.",
   },
 ];
 
@@ -116,18 +116,24 @@ const downloadLinks = [
     detail: "지도에서 쓰는 동별 수요 score와 confidence",
   },
   {
-    name: "최신 수요 우선순위 JSON",
-    href: "/dispatch-plan.json",
-    detail: "동별 수요압력 score와 monitoring action level",
+    name: "최신 도로 예측 JSON",
+    href: "/traffic-forecast/latest.json",
+    detail: "동별 1시간 뒤 교통량 proxy, 혼잡도, 평균속도 예측",
+  },
+  {
+    name: "예측-관측 비교 JSON",
+    href: "/traffic-forecast-comparison.json",
+    detail: "도로 예측값과 이후 citydata 관측값의 차이",
   },
 ];
 
 const artifactRows = [
   ["Feature table", "data/processed/features/dong_hour_features_v2_2023-01_2025-12.csv", "77MB", "배포 제외"],
   ["Live model", "data/processed/model_live_compatible/dong_demand_proxy_model.joblib", "1.1MB", "로컬 산출물"],
+  ["Traffic model", "data/processed/model_traffic_forecast/traffic_forecast_model.joblib", "0.9MB", "로컬 산출물"],
   ["Feature-set evaluation", "data/processed/model_feature_set_eval/demand_proxy_feature_set_eval.csv", "4KB", "다운로드 제공"],
   ["Latest forecast", "public/forecast/latest.json", "4KB", "다운로드 제공"],
-  ["Demand priority", "public/dispatch-plan.json", "8KB", "다운로드 제공"],
+  ["Traffic forecast", "public/traffic-forecast/latest.json", "5KB", "다운로드 제공"],
 ];
 
 const slides = [

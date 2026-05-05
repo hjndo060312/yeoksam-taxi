@@ -9,7 +9,8 @@
       "data catalog",
       "feature-set evaluation CSV",
       "latest forecast JSON",
-      "latest dispatch plan JSON"
+      "latest traffic forecast JSON",
+      "forecast-observation comparison JSON"
     ]
   },
   "sources": [
@@ -96,11 +97,18 @@
       "purpose": "Map demand scores"
     },
     {
-      "name": "Latest dispatch plan",
-      "path": "public/dispatch-plan.json",
-      "size": "8KB",
+      "name": "Latest traffic forecast",
+      "path": "public/traffic-forecast/latest.json",
+      "size": "5KB",
       "hosted": true,
-      "purpose": "Dispatch priority and imbalance scores"
+      "purpose": "Next-hour dong-level traffic volume proxy, congestion and speed estimates"
+    },
+    {
+      "name": "Traffic forecast comparison",
+      "path": "public/traffic-forecast-comparison.json",
+      "size": "1KB",
+      "hosted": true,
+      "purpose": "Compare predicted road congestion/speed with later citydata observations"
     }
   ]
 }

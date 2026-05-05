@@ -1,0 +1,205 @@
+{
+  "generated_at": "2026-05-05T14:53:32.822Z",
+  "source_log_path": "data/processed/live_validation/live_forecast_log.jsonl",
+  "traffic_source_dir": "data/raw/traffic",
+  "status": "has_completed_comparison",
+  "note": "Live comparison pairs saved demand-proxy forecasts with road congestion observed by Seoul citydata after the forecast target time. Public transit/taxi-call demand labels are separate and may arrive later.",
+  "match_window_minutes": 90,
+  "log_count": 2,
+  "completed_count": 1,
+  "waiting_count": 1,
+  "latest": {
+    "kind": "completed",
+    "generated_at": "2026-05-05T22:07:10+09:00",
+    "target_datetime": "2026-05-05T23:00:00+09:00",
+    "feature_datetime": "2026-05-05T22:00:00+09:00",
+    "strategy": "pattern",
+    "actual_observed_at": "2026-05-05T14:34:31.619Z",
+    "actual_snapshot_path": "data/raw/traffic/2026-05-05/2334.json",
+    "comparison_type": "forecast_demand_score_vs_observed_road_congestion",
+    "note": "Forecast is a movement-demand proxy score. Observed value is Seoul citydata road congestion at/after the target time. This is a live signal check, not taxi-call accuracy.",
+    "overall": {
+      "row_count": 5,
+      "spearman_r": 0.7,
+      "mean_abs_score_gap": 0.2004,
+      "top_forecast_dong": "논현1동",
+      "top_observed_congestion_dong": "대치4동",
+      "same_top_dong": false
+    },
+    "rows": [
+      {
+        "dong_name": "논현1동",
+        "forecast_score": 1,
+        "forecast_raw_prediction": 15.56303,
+        "forecast_confidence": 0.58,
+        "observed_congestion_score": 0.568,
+        "observed_avg_speed_kmh": 21.9,
+        "observed_link_count": 19,
+        "forecast_rank": 1,
+        "observed_congestion_rank": 3,
+        "score_gap": 0.432,
+        "abs_score_gap": 0.432,
+        "rank_gap": -2
+      },
+      {
+        "dong_name": "대치4동",
+        "forecast_score": 0.8065,
+        "forecast_raw_prediction": 13.345747,
+        "forecast_confidence": 0.58,
+        "observed_congestion_score": 0.572,
+        "observed_avg_speed_kmh": 17.8,
+        "observed_link_count": 18,
+        "forecast_rank": 2,
+        "observed_congestion_rank": 1,
+        "score_gap": 0.2345,
+        "abs_score_gap": 0.2345,
+        "rank_gap": 1
+      },
+      {
+        "dong_name": "역삼1동",
+        "forecast_score": 0.7333,
+        "forecast_raw_prediction": 12.507509,
+        "forecast_confidence": 0.58,
+        "observed_congestion_score": 0.571,
+        "observed_avg_speed_kmh": 21.6,
+        "observed_link_count": 91,
+        "forecast_rank": 3,
+        "observed_congestion_rank": 2,
+        "score_gap": 0.1623,
+        "abs_score_gap": 0.1623,
+        "rank_gap": 1
+      },
+      {
+        "dong_name": "삼성1동",
+        "forecast_score": 0.5792,
+        "forecast_raw_prediction": 10.741101,
+        "forecast_confidence": 0.58,
+        "observed_congestion_score": 0.526,
+        "observed_avg_speed_kmh": 21.6,
+        "observed_link_count": 12,
+        "forecast_rank": 4,
+        "observed_congestion_rank": 4,
+        "score_gap": 0.0532,
+        "abs_score_gap": 0.0532,
+        "rank_gap": 0
+      },
+      {
+        "dong_name": "삼성2동",
+        "forecast_score": 0.3969,
+        "forecast_raw_prediction": 8.652102,
+        "forecast_confidence": 0.58,
+        "observed_congestion_score": 0.517,
+        "observed_avg_speed_kmh": 25.3,
+        "observed_link_count": 23,
+        "forecast_rank": 5,
+        "observed_congestion_rank": 5,
+        "score_gap": -0.1201,
+        "abs_score_gap": 0.1201,
+        "rank_gap": 0
+      }
+    ]
+  },
+  "completed": [
+    {
+      "generated_at": "2026-05-05T22:07:10+09:00",
+      "target_datetime": "2026-05-05T23:00:00+09:00",
+      "feature_datetime": "2026-05-05T22:00:00+09:00",
+      "strategy": "pattern",
+      "actual_observed_at": "2026-05-05T14:34:31.619Z",
+      "actual_snapshot_path": "data/raw/traffic/2026-05-05/2334.json",
+      "comparison_type": "forecast_demand_score_vs_observed_road_congestion",
+      "note": "Forecast is a movement-demand proxy score. Observed value is Seoul citydata road congestion at/after the target time. This is a live signal check, not taxi-call accuracy.",
+      "overall": {
+        "row_count": 5,
+        "spearman_r": 0.7,
+        "mean_abs_score_gap": 0.2004,
+        "top_forecast_dong": "논현1동",
+        "top_observed_congestion_dong": "대치4동",
+        "same_top_dong": false
+      },
+      "rows": [
+        {
+          "dong_name": "논현1동",
+          "forecast_score": 1,
+          "forecast_raw_prediction": 15.56303,
+          "forecast_confidence": 0.58,
+          "observed_congestion_score": 0.568,
+          "observed_avg_speed_kmh": 21.9,
+          "observed_link_count": 19,
+          "forecast_rank": 1,
+          "observed_congestion_rank": 3,
+          "score_gap": 0.432,
+          "abs_score_gap": 0.432,
+          "rank_gap": -2
+        },
+        {
+          "dong_name": "대치4동",
+          "forecast_score": 0.8065,
+          "forecast_raw_prediction": 13.345747,
+          "forecast_confidence": 0.58,
+          "observed_congestion_score": 0.572,
+          "observed_avg_speed_kmh": 17.8,
+          "observed_link_count": 18,
+          "forecast_rank": 2,
+          "observed_congestion_rank": 1,
+          "score_gap": 0.2345,
+          "abs_score_gap": 0.2345,
+          "rank_gap": 1
+        },
+        {
+          "dong_name": "역삼1동",
+          "forecast_score": 0.7333,
+          "forecast_raw_prediction": 12.507509,
+          "forecast_confidence": 0.58,
+          "observed_congestion_score": 0.571,
+          "observed_avg_speed_kmh": 21.6,
+          "observed_link_count": 91,
+          "forecast_rank": 3,
+          "observed_congestion_rank": 2,
+          "score_gap": 0.1623,
+          "abs_score_gap": 0.1623,
+          "rank_gap": 1
+        },
+        {
+          "dong_name": "삼성1동",
+          "forecast_score": 0.5792,
+          "forecast_raw_prediction": 10.741101,
+          "forecast_confidence": 0.58,
+          "observed_congestion_score": 0.526,
+          "observed_avg_speed_kmh": 21.6,
+          "observed_link_count": 12,
+          "forecast_rank": 4,
+          "observed_congestion_rank": 4,
+          "score_gap": 0.0532,
+          "abs_score_gap": 0.0532,
+          "rank_gap": 0
+        },
+        {
+          "dong_name": "삼성2동",
+          "forecast_score": 0.3969,
+          "forecast_raw_prediction": 8.652102,
+          "forecast_confidence": 0.58,
+          "observed_congestion_score": 0.517,
+          "observed_avg_speed_kmh": 25.3,
+          "observed_link_count": 23,
+          "forecast_rank": 5,
+          "observed_congestion_rank": 5,
+          "score_gap": -0.1201,
+          "abs_score_gap": 0.1201,
+          "rank_gap": 0
+        }
+      ]
+    }
+  ],
+  "waiting": [
+    {
+      "generated_at": "2026-05-05T23:34:38+09:00",
+      "target_datetime": "2026-05-06T00:00:00+09:00",
+      "feature_datetime": "2026-05-05T23:00:00+09:00",
+      "strategy": "pattern",
+      "top_forecast_dong": "역삼1동",
+      "top_forecast_score": 1,
+      "status": "waiting_for_target_time"
+    }
+  ]
+}

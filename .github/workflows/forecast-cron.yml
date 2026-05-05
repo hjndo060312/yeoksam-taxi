@@ -41,9 +41,11 @@ jobs:
           LIVE_FEATURE_TABLE_URL: ${{ secrets.LIVE_FEATURE_TABLE_URL }}
           LIVE_PATTERN_CACHE_URL: ${{ secrets.LIVE_PATTERN_CACHE_URL }}
           LIVE_HOLIDAYS_URL: ${{ secrets.LIVE_HOLIDAYS_URL }}
+          TRAFFIC_MODEL_URL: ${{ secrets.TRAFFIC_MODEL_URL }}
+          TRAFFIC_PATTERN_CACHE_URL: ${{ secrets.TRAFFIC_PATTERN_CACHE_URL }}
         run: |
           set -euo pipefail
-          mkdir -p data/processed/model_live_compatible data/processed/features data/processed/calendar
+          mkdir -p data/processed/model_live_compatible data/processed/model_traffic_forecast data/processed/features data/processed/calendar
 
           if [ -n "${LIVE_MODEL_URL:-}" ]; then
             curl -fsSL "$LIVE_MODEL_URL" -o data/processed/model_live_compatible/dong_demand_proxy_model.joblib
@@ -61,11 +63,21 @@ jobs:
             curl -fsSL "$LIVE_HOLIDAYS_URL" -o data/processed/calendar/korean_public_holidays_2023_2026.csv
           fi
 
+          if [ -n "${TRAFFIC_MODEL_URL:-}" ]; then
+            curl -fsSL "$TRAFFIC_MODEL_URL" -o data/processed/model_traffic_forecast/traffic_forecast_model.joblib
+          fi
+
+          if [ -n "${TRAFFIC_PATTERN_CACHE_URL:-}" ]; then
+            curl -fsSL "$TRAFFIC_PATTERN_CACHE_URL" -o data/processed/model_traffic_forecast/traffic_pattern_cache.json
+          fi
+
       - name: Check live inference artifacts
         run: |
           set -euo pipefail
           test -f data/processed/model_live_compatible/dong_demand_proxy_model.joblib
           test -f data/processed/features/dong_hour_features_v2_2023-01_2025-12.csv || test -f data/processed/model_live_compatible/pattern_cache.json
+          test -f data/processed/model_traffic_forecast/traffic_forecast_model.joblib
+          test -f data/processed/model_traffic_forecast/traffic_pattern_cache.json
 
       - name: Run live demand cycle
         env:
@@ -85,10 +97,16 @@ jobs:
             public/data-summary.json \
             public/feature-snapshot.json \
             public/traffic-snapshot.json \
+            public/live-forecast-comparison.json \
+            public/traffic-forecast/latest.json \
+            public/traffic-forecast-comparison.json \
             public/model-observability.json \
             data/processed/features/latest.json \
             data/processed/live_validation/latest.json \
             data/processed/live_validation/live_forecast_log.jsonl \
+            data/processed/live_validation/live_forecast_comparison.json \
+            data/processed/live_validation/traffic_forecast_log.jsonl \
+            data/processed/live_validation/traffic_forecast_comparison.json \
             data/processed/traffic/citydata_dong_traffic_latest.json
           if git diff --cached --quiet; then
             echo "No generated forecast changes to persist."

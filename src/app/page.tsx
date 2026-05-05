@@ -90,21 +90,46 @@ export default function Home() {
 
   return (
     <main className="relative h-screen w-full overflow-hidden bg-black">
-      <div className="pointer-events-none absolute left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-2 px-3 sm:top-4">
-        <Link
-          className="pointer-events-auto rounded-full border border-white/15 bg-slate-950/82 px-4 py-2 text-sm font-extrabold text-white shadow-2xl backdrop-blur-md transition hover:border-blue-300/70 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          href="/presentation"
-        >
-          A-Eye 발표 자료
-        </Link>
-        <Link
-          className="pointer-events-auto rounded-full border border-white/15 bg-slate-950/82 px-4 py-2 text-sm font-extrabold text-white shadow-2xl backdrop-blur-md transition hover:border-blue-300/70 hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
-          href="/data"
-        >
-          데이터 현황
-        </Link>
+      <div className="absolute top-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 pointer-events-none">
+        <div className="glass-panel px-6 py-2 rounded-full flex items-center gap-6 pointer-events-auto bg-slate-900/50 backdrop-blur-xl border border-white/10 shadow-2xl">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <div className="h-2 w-2 rounded-full bg-cyan-500 shadow-[0_0_8px_#06b6d4]"></div>
+              <div className="absolute -inset-1 animate-ping rounded-full bg-cyan-500/20"></div>
+            </div>
+            <span className="text-xs font-black tracking-widest text-slate-100 uppercase">A-EYE LIVE</span>
+          </div>
+
+          <div className="h-4 w-px bg-white/10"></div>
+
+          <nav className="flex items-center gap-1">
+            <Link
+              href="/presentation"
+              className="px-4 py-1.5 rounded-full text-xs font-bold text-slate-400 transition hover:text-slate-100 hover:bg-white/5"
+            >
+              PRESENTATION
+            </Link>
+            <Link
+              href="/data"
+              className="px-4 py-1.5 rounded-full text-xs font-bold text-slate-400 transition hover:text-slate-100 hover:bg-white/5"
+            >
+              DATA CENTER
+            </Link>
+          </nav>
+        </div>
       </div>
-      <MapSimulatorClient buildVersion={buildVersion} />
+
+      <div className="relative w-full h-full">
+        <MapSimulatorClient buildVersion={buildVersion} />
+
+        <div className="absolute bottom-8 left-8 z-10 pointer-events-none">
+          <div className="glass-panel px-4 py-3 rounded-xl border-l-4 border-l-cyan-500 bg-slate-900/50 backdrop-blur-xl border border-white/10">
+            <div className="text-[10px] font-black text-cyan-500 uppercase tracking-wider mb-1">Area Focus</div>
+            <div className="text-lg font-black text-slate-100">Gangnam-gu Yeoksam-dong</div>
+            <div className="text-[10px] text-slate-500 mt-1">Digital Twin v1.0.4 · Real-time Sync Active</div>
+          </div>
+        </div>
+      </div>
     </main>
   );
 }

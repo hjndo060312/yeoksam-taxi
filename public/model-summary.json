@@ -96,15 +96,18 @@
     "npm_script": "npm run model:live:demand-cycle",
     "outputs": [
       "public/forecast/latest.json",
-      "public/dispatch-plan.json",
-      "data/processed/live_validation/live_forecast_log.jsonl"
+      "public/traffic-forecast/latest.json",
+      "public/traffic-forecast-comparison.json",
+      "data/processed/live_validation/live_forecast_log.jsonl",
+      "data/processed/live_validation/traffic_forecast_log.jsonl"
     ],
-    "dispatch_logic": "predicted demand score minus road accessibility proxy; monitoring priority, not taxi dispatch"
+    "interpretation": "collects live public proxy inputs, predicts next-hour movement demand and road traffic/congestion proxy, then compares later observations when available"
   },
   "public_downloads": [
     "/data-catalog.json",
     "/downloads/demand_proxy_feature_set_eval.csv",
     "/forecast/latest.json",
-    "/dispatch-plan.json"
+    "/traffic-forecast/latest.json",
+    "/traffic-forecast-comparison.json"
   ]
 }

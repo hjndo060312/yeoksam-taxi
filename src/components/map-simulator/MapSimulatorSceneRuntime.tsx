@@ -2160,8 +2160,35 @@ export default function MapSimulatorSceneRuntime({
     applyRenderBudget(activeCameraMode);
     syncCamera();
 
+    const forecastByDong = new Map(
+      data.trafficForecast?.regions.map((r) => [r.dong_name, r]) ?? [],
+    );
+
     dongRegions.forEach((dong) => {
-      const label = new CSS2DObject(labelElement(dong.name, "district"));
+      const forecast = forecastByDong.get(dong.name);
+      const congestionScore = forecast?.predicted_congestion_score ?? 0;
+      const status =
+        congestionScore > 0.7
+          ? "혼잡"
+          : congestionScore > 0.4
+            ? "보통"
+            : "원활";
+      const statusColor =
+        status === "혼잡"
+          ? "text-rose-600 bg-rose-50 border-rose-100"
+          : status === "보통"
+            ? "text-amber-600 bg-amber-50 border-amber-100"
+            : "text-emerald-600 bg-emerald-50 border-emerald-100";
+
+      const el = labelElement(dong.name, "district");
+      if (forecast) {
+        const badge = document.createElement("span");
+        badge.className = `ml-2 px-1.5 py-0.5 rounded-md border text-[10px] font-black ${statusColor}`;
+        badge.innerText = status;
+        el.appendChild(badge);
+      }
+
+      const label = new CSS2DObject(el);
       label.position.set(dong.position.x, 2.8, dong.position.z);
       label.visible = true;
       districtLabelElements.set(dong.name, label.element as HTMLDivElement);
@@ -2256,66 +2283,90 @@ export default function MapSimulatorSceneRuntime({
     }
     rebuildDispatchPlanner();
 
-    const nextSignalVisuals = signals.map((signal) => {
-      const group = new THREE.Group();
-      const reds: SignalLampVisual[] = [];
-      const yellows: SignalLampVisual[] = [];
-      const greens: SignalLampVisual[] = [];
-      const leftArrows: SignalLampVisual[] = [];
-      const pedestrianLamps: SignalLampVisual[] = [];
-
-      const mastDistance = signal.approaches.length >= 4 ? 4.2 : 3.6;
-      const mastLayout = signal.approaches.map((direction) => {
-        switch (direction) {
-          case "north":
-            return {
-              axis: "ns" as const,
-              offset: new THREE.Vector3(0, 0, -mastDistance),
-              yaw: 0,
-            };
-          case "south":
-            return {
-              axis: "ns" as const,
-              offset: new THREE.Vector3(0, 0, mastDistance),
-              yaw: Math.PI,
-            };
-          case "east":
-            return {
-              axis: "ew" as const,
-              offset: new THREE.Vector3(mastDistance, 0, 0),
-              yaw: Math.PI / 2,
-            };
-          default:
-            return {
-              axis: "ew" as const,
-              offset: new THREE.Vector3(-mastDistance, 0, 0),
-              yaw: -Math.PI / 2,
-            };
-        }
+      const signalPoleGeometry = new THREE.CylinderGeometry(0.1, 0.1, 3.35, 8);
+      const signalPoleMaterial = new THREE.MeshStandardMaterial({
+        color: 0x8d98a6,
+        roughness: 0.62,
+      });
+      const signalHeadGeometry = new THREE.BoxGeometry(0.58, 1.24, 0.42);
+      const signalHeadMaterial = new THREE.MeshStandardMaterial({
+        color: 0x10161f,
+        roughness: 0.5,
       });
 
+      const totalMasts = signals.reduce(
+        (sum, s) => sum + s.approaches.length,
+        0,
+      );
+      const signalPoleMesh = new THREE.InstancedMesh(
+        signalPoleGeometry,
+        signalPoleMaterial,
+        totalMasts,
+      );
+      const signalHeadMesh = new THREE.InstancedMesh(
+        signalHeadGeometry,
+        signalHeadMaterial,
+        totalMasts,
+      );
+
+      let mastIndex = 0;
+      const nextSignalVisuals = signals.map((signal) => {
+        const group = new THREE.Group();
+        const reds: SignalLampVisual[] = [];
+        const yellows: SignalLampVisual[] = [];
+        const greens: SignalLampVisual[] = [];
+        const leftArrows: SignalLampVisual[] = [];
+        const pedestrianLamps: SignalLampVisual[] = [];
+
+        const mastDistance = signal.approaches.length >= 4 ? 4.2 : 3.6;
+        const mastLayout = signal.approaches.map((direction) => {
+          const yaw = signal.approachYaws[direction] ?? 0;
+          switch (direction) {
+            case "north":
+              return {
+                axis: "ns" as const,
+                offset: new THREE.Vector3(0, 0, -mastDistance),
+                yaw: yaw,
+              };
+            case "south":
+              return {
+                axis: "ns" as const,
+                offset: new THREE.Vector3(0, 0, mastDistance),
+                yaw: yaw,
+              };
+            case "east":
+              return {
+                axis: "ew" as const,
+                offset: new THREE.Vector3(mastDistance, 0, 0),
+                yaw: yaw,
+              };
+            default:
+              return {
+                axis: "ew" as const,
+                offset: new THREE.Vector3(-mastDistance, 0, 0),
+                yaw: yaw,
+              };
+          }
+        });
+
         mastLayout.forEach(({ axis, offset, yaw }) => {
+          dummy.position.copy(signal.visualPoint).add(offset);
+          dummy.position.y = 1.675;
+          dummy.rotation.set(0, yaw, 0);
+          dummy.scale.setScalar(1);
+          dummy.updateMatrix();
+          signalPoleMesh.setMatrixAt(mastIndex, dummy.matrix);
+
+          dummy.position.y = 2.62;
+          dummy.updateMatrix();
+          signalHeadMesh.setMatrixAt(mastIndex, dummy.matrix);
+
+          mastIndex += 1;
+
           const mast = new THREE.Group();
           mast.position.copy(offset);
           mast.rotation.y = yaw;
-
-          const pole = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.1, 0.1, 3.35, 8),
-            new THREE.MeshStandardMaterial({
-              color: 0x8d98a6,
-              roughness: 0.62,
-            }),
-          );
-          pole.position.set(0, 1.675, 0);
-          pole.castShadow = true;
-          mast.add(pole);
-
-          const head = new THREE.Mesh(
-            new THREE.BoxGeometry(0.58, 1.24, 0.42),
-            new THREE.MeshStandardMaterial({ color: 0x10161f, roughness: 0.5 }),
-          );
-          head.position.set(0.02, 2.62, 0);
-          mast.add(head);
+          // Note: Pole and Head are now handled by InstancedMesh
 
           const red = new THREE.Mesh(
             new THREE.SphereGeometry(0.11, 12, 12),
@@ -2391,13 +2442,17 @@ export default function MapSimulatorSceneRuntime({
         } satisfies SignalVisual;
       });
       signalVisuals.push(...nextSignalVisuals);
+      signalPoleMesh.instanceMatrix.needsUpdate = true;
+      signalHeadMesh.instanceMatrix.needsUpdate = true;
+      scene.add(signalPoleMesh);
+      scene.add(signalHeadMesh);
 
       const crosswalkStripes = signalVisuals.flatMap((signal) => {
         const stripeOffset = (CROSSWALK_STRIPE_COUNT - 1) * 0.5;
         const nsStripes = Array.from(
           { length: CROSSWALK_STRIPE_COUNT },
           (_, index) => ({
-            center: signal.visualPoint
+            center: signal.point
               .clone()
               .add(
                 new THREE.Vector3(
@@ -2414,7 +2469,7 @@ export default function MapSimulatorSceneRuntime({
         const ewStripes = Array.from(
           { length: CROSSWALK_STRIPE_COUNT },
           (_, index) => ({
-            center: signal.visualPoint
+            center: signal.point
               .clone()
               .add(
                 new THREE.Vector3(
