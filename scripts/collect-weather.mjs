@@ -113,17 +113,26 @@ if (apiKeyCandidates.length === 0) {
     const url =
       "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst" +
       `?serviceKey=${apiKey}&${params}`;
-    const res = await fetch(url, { cache: "no-store" });
-    status = res.status;
     credentialSource = source;
-    if (res.ok) {
-      ok = true;
-      data = await res.json();
-      error = null;
-      break;
-    }
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      status = res.status;
+      if (res.ok) {
+        ok = true;
+        data = await res.json();
+        error = null;
+        break;
+      }
 
-    error = (await res.text()).slice(0, 500);
+      try {
+        error = (await res.text()).slice(0, 500);
+      } catch {
+        error = `HTTP ${res.status}`;
+      }
+    } catch (fetchError) {
+      status = null;
+      error = fetchError?.message ?? String(fetchError);
+    }
   }
 }
 
@@ -150,4 +159,5 @@ await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
 console.log(`Wrote ${path.relative(projectRoot, outputPath)}`);
 if (!ok) {
   console.log(`KMA snapshot saved with warning: ${error ?? status}`);
+  process.exitCode = 2;
 }

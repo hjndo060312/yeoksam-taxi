@@ -27,8 +27,27 @@ async function latestRawPath(relativeDir) {
       mtimeMs: (await stat(path.join(dayRoot, f))).mtimeMs,
     })),
   );
-  const latest = infos.sort((a, b) => a.mtimeMs - b.mtimeMs).at(-1);
-  return latest ? path.join(dayRoot, latest.file) : null;
+  const sorted = infos.sort((a, b) => a.mtimeMs - b.mtimeMs);
+  const candidates = sorted.map((info) => path.join(dayRoot, info.file));
+
+  const isCitydata = relativeDir.includes("citydata");
+  if (!isCitydata) return candidates.at(-1) ?? null;
+
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    try {
+      const json = JSON.parse(await readFile(candidates[index], "utf8"));
+      const metaOk = json?.meta?.ok;
+      if (typeof metaOk === "boolean") {
+        if (metaOk) return candidates[index];
+      } else if (Array.isArray(json?.results) && json.results.some((r) => r?.ok)) {
+        return candidates[index];
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return candidates.at(-1) ?? null;
 }
 
 function kstParts(date = new Date()) {

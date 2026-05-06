@@ -64,6 +64,7 @@ The base spatial unit is the 9 Gangnam administrative dongs in `public/dongs.geo
 - Source: 서울시 행정동 단위 대중교통 출발지/도착지 승객수 정보
 - Site: https://data.seoul.go.kr/dataList/OA-21226/F/1/datasetView.do
 - Script: `npm run data:collect:transit:od -- 2023-01:2025-12`
+- Fallback (no Node child-process): `npm run data:collect:transit:od:py 2023-01:2025-12`
 - Combined output: `data/processed/transit_od/seoul_transit_od_dong_hourly_2023-01_2025-12.csv`
 - Rows: 229,176
 - Complete months: 30 / 36
@@ -75,6 +76,7 @@ The base spatial unit is the 9 Gangnam administrative dongs in `public/dongs.geo
 - Source: 행정동 단위 서울 생활인구(내국인)
 - Site: https://data.seoul.go.kr/dataList/OA-14991/S/1/datasetView.do
 - Script: `npm run data:collect:living-pop -- 2023-01:2025-12`
+- Fallback (no Node child-process): `npm run data:collect:living-pop:py 2023-01:2025-12`
 - Combined output: `data/processed/living_population/seoul_living_population_dong_hourly_2023-01_2025-12.csv`
 - Rows: 236,304
 - Complete months: 35 / 36

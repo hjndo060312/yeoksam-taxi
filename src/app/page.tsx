@@ -30,7 +30,7 @@ function formatBuildTimeKst(date: Date) {
     minute: "2-digit",
     hour12: false,
   }).formatToParts(date);
-  const partMap = new Map(parts.map((part) => [part.type, part.value]));
+  const partMap = new globalThis.Map(parts.map((part) => [part.type, part.value]));
 
   return `${partMap.get("year")}.${partMap.get("month")}.${partMap.get("day")} ${partMap.get("hour")}:${partMap.get("minute")} KST`;
 }

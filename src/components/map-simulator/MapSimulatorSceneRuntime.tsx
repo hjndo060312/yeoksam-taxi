@@ -900,10 +900,10 @@ export default function MapSimulatorSceneRuntime({
     const taxiRoutePool: RouteTemplate[] = data.taxiRoutePool;
     const trafficRoutePool: RouteTemplate[] = data.trafficRoutePool;
     const loopRoutes: RouteTemplate[] = data.loopRoutes;
-    const hotspotById = new Map(
+    const hotspotById = new globalThis.Map(
       hotspotPool.map((hotspot) => [hotspot.id, hotspot] as const),
     );
-    const routeById = new Map(
+    const routeById = new globalThis.Map(
       [...loopRoutes, ...taxiRoutePool, ...trafficRoutePool].map((route) => [
         route.id,
         route,
@@ -930,20 +930,23 @@ export default function MapSimulatorSceneRuntime({
     let appliedTimeMinutes = -1;
     let hotspotActivityAccumulator = HOTSPOT_ACTIVITY_REFRESH_INTERVAL;
     void hotspotActivityAccumulator;
-    const frameSignalStates = new Map<string, SignalFlow>();
-    const activePickupsByHotspot = new Map<string, number>();
-    const activeDropoffsByHotspot = new Map<string, number>();
-    const intersectionOccupancy = new Map<string, SignalAxisOccupancy>();
-    const intersectionApproachDemand = new Map<string, SignalApproachDemand>();
-    const intersectionApproachDistance = new Map<
+    const frameSignalStates = new globalThis.Map<string, SignalFlow>();
+    const activePickupsByHotspot = new globalThis.Map<string, number>();
+    const activeDropoffsByHotspot = new globalThis.Map<string, number>();
+    const intersectionOccupancy = new globalThis.Map<string, SignalAxisOccupancy>();
+    const intersectionApproachDemand = new globalThis.Map<
+      string,
+      SignalApproachDemand
+    >();
+    const intersectionApproachDistance = new globalThis.Map<
       string,
       SignalApproachDistance
     >();
-    const intersectionExitOccupancy = new Map<
+    const intersectionExitOccupancy = new globalThis.Map<
       string,
       SignalDirectionalOccupancy
     >();
-    const proximityBuckets: VehicleProximityBuckets = new Map();
+    const proximityBuckets: VehicleProximityBuckets = new globalThis.Map();
     const vehicleSimulationSamples: VehicleSimulationSample[] = [];
     const activeVehicleDensity = {
       taxis: appliedTaxiCountRef.current,
@@ -1044,8 +1047,8 @@ export default function MapSimulatorSceneRuntime({
         syncActiveHotspotDemandMaps();
       }
 
-      const pickupDemandMap = new Map(activePickupsByHotspot);
-      const dropoffDemandMap = new Map(activeDropoffsByHotspot);
+      const pickupDemandMap = new globalThis.Map(activePickupsByHotspot);
+      const dropoffDemandMap = new globalThis.Map(activeDropoffsByHotspot);
       const excludedVehicle = excludedVehicleId
         ? taxiById.get(excludedVehicleId) ?? null
         : null;
@@ -2160,7 +2163,7 @@ export default function MapSimulatorSceneRuntime({
     applyRenderBudget(activeCameraMode);
     syncCamera();
 
-    const forecastByDong = new Map(
+    const forecastByDong = new globalThis.Map(
       data.trafficForecast?.regions.map((r) => [r.dong_name, r]) ?? [],
     );
 
@@ -2275,7 +2278,7 @@ export default function MapSimulatorSceneRuntime({
       return undefined;
     }
 
-    const taxiRouteById = new Map(
+    const taxiRouteById = new globalThis.Map(
       taxiRoutePool.map((route) => [route.id, route]),
     );
     if (!hotspotPool.length) {
@@ -3225,7 +3228,7 @@ export default function MapSimulatorSceneRuntime({
         frameSignalStates.clear();
         return;
       }
-      const signalSnapshotById = new Map(
+      const signalSnapshotById = new globalThis.Map(
         signalSnapshots.map((signalSnapshot) => [signalSnapshot.id, signalSnapshot] as const),
       );
       frameSignalStates.clear();
@@ -3289,7 +3292,7 @@ export default function MapSimulatorSceneRuntime({
       if (!hotspotVisuals.length) {
         return;
       }
-      const hotspotSnapshotById = new Map(
+      const hotspotSnapshotById = new globalThis.Map(
         hotspotSnapshots.map((hotspotSnapshot) => [hotspotSnapshot.id, hotspotSnapshot] as const),
       );
 

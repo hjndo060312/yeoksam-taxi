@@ -80,6 +80,7 @@ export default function RefreshForecastControl() {
         </p>
         <label className="block">
           <input
+            suppressHydrationWarning
             type="password"
             value={token}
             onChange={(event) => setToken(event.target.value)}

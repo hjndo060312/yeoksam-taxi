@@ -148,7 +148,7 @@ export async function loadSimulationData({
     projectedRoadSegments,
     roadSegmentSpatialIndex,
   );
-  const signalByKey = new Map(
+  const signalByKey = new globalThis.Map(
     signals.map((signal) => [signal.key, signal] as const),
   );
   const loopRoutes = buildLoopRoutes(roads, center, signalByKey);

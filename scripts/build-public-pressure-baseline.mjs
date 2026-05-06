@@ -7,9 +7,19 @@ const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
 const LOG_PATH = "data/processed/live_validation/taxi_pressure_log.jsonl";
-const PROCESSED_OUTPUT = "data/processed/live_validation/taxi_pressure_comparison.json";
-const PUBLIC_OUTPUT = "public/taxi-pressure-comparison.json";
+const PROCESSED_OUTPUT = "data/processed/live_validation/public_pressure_baseline_comparison.json";
+const PUBLIC_OUTPUT = "public/public-pressure-baseline-comparison.json";
 const MATCH_WINDOW_MINUTES = 90;
+
+const AREA_TO_DONG = {
+  POI042: "역삼1동",
+  POI001: "논현1동",
+  POI043: "삼성1동",
+  POI044: "대치4동",
+  POI045: "청담동",
+  POI046: "신사동",
+  POI047: "압구정동",
+};
 
 async function readJsonIfExists(relativePath, fallback = null) {
   try {
@@ -82,6 +92,11 @@ function numberOrNull(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function clamp(value, min = 0, max = 1) {
+  if (!Number.isFinite(value)) return null;
+  return Math.min(max, Math.max(min, value));
+}
+
 function round(value, digits = 4) {
   if (!Number.isFinite(value)) return null;
   return Number(value.toFixed(digits));
@@ -120,6 +135,29 @@ function pearson(leftValues, rightValues) {
   return denominator > 0 ? numerator / denominator : null;
 }
 
+function unwrapCitydata(response) {
+  return (
+    response?.["SeoulRtd.citydata"]?.CITYDATA ??
+    response?.CITYDATA_ALL?.CITYDATA ??
+    response?.CITYDATA ??
+    null
+  );
+}
+
+function citydataObservedAt(snapshot) {
+  const metaTime = parseTime(snapshot?.meta?.collected_at ?? null);
+  if (metaTime) return metaTime;
+
+  for (const result of snapshot?.results ?? []) {
+    const data = unwrapCitydata(result.data);
+    const pop = data?.LIVE_PPLTN_STTS?.[0] ?? null;
+    const observedAt = parseTime(pop?.PPLTN_TIME ?? data?.PPLTN_TIME ?? null);
+    if (observedAt) return observedAt;
+  }
+
+  return null;
+}
+
 function trafficObservedAt(snapshot) {
   return parseTime(snapshot?.meta?.collected_at ?? snapshot?.meta?.extracted_at ?? null);
 }
@@ -138,7 +176,21 @@ async function loadTrafficSnapshots() {
   return snapshots.sort((left, right) => left.observed_at - right.observed_at);
 }
 
-function findTrafficSnapshot(targetAt, snapshots) {
+async function loadCitydataSnapshots() {
+  const files = await walkJsonFiles("data/raw/citydata");
+  const snapshots = [];
+
+  for (const file of files) {
+    const snapshot = await readJsonIfExists(file.relative_path);
+    const observedAt = citydataObservedAt(snapshot);
+    if (!observedAt || !Array.isArray(snapshot?.results)) continue;
+    snapshots.push({ ...file, observed_at: observedAt, snapshot });
+  }
+
+  return snapshots.sort((left, right) => left.observed_at - right.observed_at);
+}
+
+function findSnapshot(targetAt, snapshots) {
   const maxTime = targetAt.getTime() + MATCH_WINDOW_MINUTES * 60 * 1000;
   return snapshots.find((snapshot) => {
     const observedTime = snapshot.observed_at.getTime();
@@ -146,128 +198,118 @@ function findTrafficSnapshot(targetAt, snapshots) {
   }) ?? null;
 }
 
-function comparePressureToTraffic(forecast, trafficSnapshot) {
+function summarizeCitydataPopulation(citydataSnapshot) {
+  const rows = [];
+
+  for (const result of citydataSnapshot.snapshot.results ?? []) {
+    if (!result?.ok) continue;
+    const data = unwrapCitydata(result.data);
+    const code = result.code ?? data?.AREA_CD ?? null;
+    const dongName = AREA_TO_DONG[code];
+    if (!dongName || !data) continue;
+
+    const population = data.LIVE_PPLTN_STTS?.[0] ?? {};
+    const populationMin = numberOrNull(population.PPLTN_MIN ?? population.AREA_PPLTN_MIN);
+    const populationMax = numberOrNull(population.PPLTN_MAX ?? population.AREA_PPLTN_MAX);
+    if (populationMin == null || populationMax == null) continue;
+
+    const populationMid = (populationMin + populationMax) / 2;
+    const populationScore = clamp((populationMid - 10000) / 60000);
+    if (populationScore == null) continue;
+
+    rows.push({
+      dong_name: dongName,
+      area_code: code,
+      area_name: data.AREA_NM ?? population.AREA_NM ?? null,
+      population_min: populationMin,
+      population_max: populationMax,
+      population_mid: round(populationMid, 1),
+      observed_population_score: round(populationScore, 4),
+    });
+  }
+
+  return new Map(rows.map((row) => [row.dong_name, row]));
+}
+
+function comparePressureToPublicBaseline(forecast, trafficSnapshot, citydataSnapshot) {
   const predictedRows = Array.isArray(forecast.regions) ? forecast.regions : [];
-  const actualRows = trafficSnapshot.snapshot.dong_summary ?? [];
-  const actualByDong = new Map(actualRows.map((row) => [row.dong_name, row]));
+  const trafficByDong = new Map(
+    (trafficSnapshot.snapshot.dong_summary ?? []).map((row) => [row.dong_name, row]),
+  );
+  const populationByDong = summarizeCitydataPopulation(citydataSnapshot);
 
   const rows = predictedRows
     .map((predicted) => {
-      const actual = actualByDong.get(predicted.dong_name);
-      if (!actual) return null;
+      const traffic = trafficByDong.get(predicted.dong_name);
+      const population = populationByDong.get(predicted.dong_name);
+      if (!traffic || !population) return null;
+
       const predictedPriority = numberOrNull(predicted.dispatch_priority_score);
-      const predictedPressure = numberOrNull(predicted.taxi_pressure_score);
-      const predictedCongestion = numberOrNull(predicted.predicted_congestion_score);
-      const predictedSpeed = numberOrNull(predicted.predicted_avg_speed_kmh);
-      const actualCongestion = numberOrNull(actual.congestion_score);
-      const actualSpeed = numberOrNull(actual.avg_speed_kmh);
+      const observedPopulationScore = numberOrNull(population.observed_population_score);
+      const observedCongestionScore = numberOrNull(traffic.congestion_score);
+      const observedSpeed = numberOrNull(traffic.avg_speed_kmh);
+      const observedSpeedScore = observedSpeed == null ? null : clamp(1 - observedSpeed / 60);
+
+      if (
+        observedPopulationScore == null
+        || observedCongestionScore == null
+        || observedSpeedScore == null
+      ) {
+        return null;
+      }
+
+      const observedPublicPressure =
+        0.45 * observedPopulationScore
+        + 0.35 * observedCongestionScore
+        + 0.2 * observedSpeedScore;
 
       return {
         dong_name: predicted.dong_name,
         predicted_dispatch_priority_score: predictedPriority,
-        predicted_taxi_pressure_score: predictedPressure,
-        predicted_movement_demand_score: numberOrNull(predicted.predicted_movement_demand_score),
-        predicted_traffic_volume_score: numberOrNull(predicted.predicted_traffic_volume_score),
-        predicted_congestion_score: predictedCongestion,
-        actual_congestion_score: actualCongestion,
-        congestion_error:
-          predictedCongestion == null || actualCongestion == null
-            ? null
-            : round(predictedCongestion - actualCongestion, 4),
-        abs_congestion_error:
-          predictedCongestion == null || actualCongestion == null
-            ? null
-            : round(Math.abs(predictedCongestion - actualCongestion), 4),
-        predicted_avg_speed_kmh: predictedSpeed,
-        actual_avg_speed_kmh: actualSpeed,
-        speed_error_kmh:
-          predictedSpeed == null || actualSpeed == null
-            ? null
-            : round(predictedSpeed - actualSpeed, 2),
-        abs_speed_error_kmh:
-          predictedSpeed == null || actualSpeed == null
-            ? null
-            : round(Math.abs(predictedSpeed - actualSpeed), 2),
-        actual_link_count: numberOrNull(actual.link_count),
+        observed_population_score: round(observedPopulationScore, 4),
+        observed_congestion_score: round(observedCongestionScore, 4),
+        observed_speed_score: round(observedSpeedScore, 4),
+        observed_public_pressure: round(observedPublicPressure, 4),
       };
     })
     .filter(Boolean);
 
-  const priorityRanks = rankRows(rows, "predicted_dispatch_priority_score");
-  const pressureRanks = rankRows(rows, "predicted_taxi_pressure_score");
-  const actualCongestionRanks = rankRows(rows, "actual_congestion_score");
-  const predictedSlowRanks = rankRows(rows, "predicted_avg_speed_kmh", "asc");
-  const actualSlowRanks = rankRows(rows, "actual_avg_speed_kmh", "asc");
+  const predictedRanks = rankRows(rows, "predicted_dispatch_priority_score");
+  const observedRanks = rankRows(rows, "observed_public_pressure");
 
   const rankedRows = rows
     .map((row) => ({
       ...row,
-      predicted_priority_rank: priorityRanks.get(row.dong_name) ?? null,
-      predicted_pressure_rank: pressureRanks.get(row.dong_name) ?? null,
-      actual_congestion_rank: actualCongestionRanks.get(row.dong_name) ?? null,
-      predicted_slowest_rank: predictedSlowRanks.get(row.dong_name) ?? null,
-      actual_slowest_rank: actualSlowRanks.get(row.dong_name) ?? null,
+      predicted_priority_rank: predictedRanks.get(row.dong_name) ?? null,
+      observed_pressure_rank: observedRanks.get(row.dong_name) ?? null,
     }))
     .sort((left, right) => (left.predicted_priority_rank ?? 999) - (right.predicted_priority_rank ?? 999));
 
-  const absCongestion = rankedRows
-    .map((row) => row.abs_congestion_error)
-    .filter((value) => Number.isFinite(value));
-  const absSpeed = rankedRows
-    .map((row) => row.abs_speed_error_kmh)
-    .filter((value) => Number.isFinite(value));
   const topPredicted = rankedRows.find((row) => row.predicted_priority_rank === 1) ?? null;
-  const topActualCongestion = rankedRows.find((row) => row.actual_congestion_rank === 1) ?? null;
+  const topObserved = rankedRows.find((row) => row.observed_pressure_rank === 1) ?? null;
 
   return {
     generated_at: forecast.generated_at ?? null,
     target_datetime: forecast.target_datetime ?? null,
     feature_datetime: forecast.feature_datetime ?? null,
-    actual_observed_at: trafficSnapshot.observed_at.toISOString(),
-    actual_snapshot_path: trafficSnapshot.relative_path,
-    comparison_type: "taxi_pressure_policy_check_vs_observed_road_signal",
-    note:
-      "Policy check only — not accuracy scoring. "
-      + "Taxi pressure combines demand proxy + traffic volume + congestion + road accessibility. "
-      + "Observed road congestion alone is not a valid ground-truth label for a composite policy score. "
-      + "Spearman here is a supplementary signal; a negative value does not mean the model is wrong.",
+    actual_traffic_observed_at: trafficSnapshot.observed_at.toISOString(),
+    actual_citydata_observed_at: citydataSnapshot.observed_at.toISOString(),
+    traffic_snapshot_path: trafficSnapshot.relative_path,
+    citydata_snapshot_path: citydataSnapshot.relative_path,
     overall: {
-      check_type: "policy_check",
-      row_count: rankedRows.length,
-      congestion_mae: round(
-        absCongestion.reduce((sum, value) => sum + value, 0) / Math.max(absCongestion.length, 1),
-        4,
-      ),
-      speed_mae_kmh: round(
-        absSpeed.reduce((sum, value) => sum + value, 0) / Math.max(absSpeed.length, 1),
-        2,
-      ),
-      priority_vs_road_congestion_spearman: round(
+      priority_vs_public_pressure_spearman: round(
         pearson(
           rankedRows.map((row) => row.predicted_priority_rank),
-          rankedRows.map((row) => row.actual_congestion_rank),
-        ),
-        4,
-      ),
-      pressure_vs_congestion_rank_spearman: round(
-        pearson(
-          rankedRows.map((row) => row.predicted_pressure_rank),
-          rankedRows.map((row) => row.actual_congestion_rank),
-        ),
-        4,
-      ),
-      speed_rank_spearman: round(
-        pearson(
-          rankedRows.map((row) => row.predicted_slowest_rank),
-          rankedRows.map((row) => row.actual_slowest_rank),
+          rankedRows.map((row) => row.observed_pressure_rank),
         ),
         4,
       ),
       top_predicted_priority_dong: topPredicted?.dong_name ?? null,
-      top_actual_congestion_dong: topActualCongestion?.dong_name ?? null,
+      top_observed_public_pressure_dong: topObserved?.dong_name ?? null,
       same_top_dong:
         topPredicted?.dong_name != null
-        && topPredicted?.dong_name === topActualCongestion?.dong_name,
+        && topPredicted?.dong_name === topObserved?.dong_name,
+      row_count: rankedRows.length,
     },
     rows: rankedRows,
   };
@@ -275,6 +317,7 @@ function comparePressureToTraffic(forecast, trafficSnapshot) {
 
 const forecasts = await readJsonlIfExists(LOG_PATH);
 const trafficSnapshots = await loadTrafficSnapshots();
+const citydataSnapshots = await loadCitydataSnapshots();
 const completed = [];
 const waiting = [];
 const now = new Date();
@@ -283,9 +326,11 @@ for (const forecast of forecasts) {
   const targetAt = parseTime(forecast.target_datetime);
   if (!targetAt) continue;
 
-  const matchedSnapshot = findTrafficSnapshot(targetAt, trafficSnapshots);
-  if (matchedSnapshot) {
-    completed.push(comparePressureToTraffic(forecast, matchedSnapshot));
+  const matchedTraffic = findSnapshot(targetAt, trafficSnapshots);
+  const matchedCitydata = findSnapshot(targetAt, citydataSnapshots);
+
+  if (matchedTraffic && matchedCitydata) {
+    completed.push(comparePressureToPublicBaseline(forecast, matchedTraffic, matchedCitydata));
   } else {
     waiting.push({
       generated_at: forecast.generated_at ?? null,
@@ -293,18 +338,27 @@ for (const forecast of forecasts) {
       feature_datetime: forecast.feature_datetime ?? null,
       top_predicted_priority_dong: forecast.regions?.[0]?.dong_name ?? null,
       top_predicted_priority_score: forecast.regions?.[0]?.dispatch_priority_score ?? null,
-      status: now < targetAt ? "waiting_for_target_time" : "waiting_for_observed_snapshot",
+      matched_traffic_snapshot_path: matchedTraffic?.relative_path ?? null,
+      matched_citydata_snapshot_path: matchedCitydata?.relative_path ?? null,
+      status: now < targetAt
+        ? "waiting_for_target_time"
+        : "waiting_for_observed_public_pressure_snapshot",
     });
   }
 }
 
 const latestCompleted = completed.at(-1) ?? null;
 const latestWaiting = waiting.at(-1) ?? null;
+const completedWithKind = completed.map((comparison) => ({ kind: "completed", ...comparison }));
+const waitingWithKind = waiting.map((comparison) => ({ kind: "waiting", ...comparison }));
 const output = {
   generated_at: new Date().toISOString(),
+  description:
+    "Comparison of predicted taxi pressure vs observed public-pressure baseline (population + road congestion + speed). No taxi-call labels used.",
+  comparison_type: "predicted_pressure_vs_observed_public_pressure_baseline",
   source_log_path: LOG_PATH,
   traffic_source_dir: "data/raw/traffic",
-  status: latestCompleted ? "has_completed_comparison" : "waiting_for_observation",
+  citydata_source_dir: "data/raw/citydata",
   match_window_minutes: MATCH_WINDOW_MINUTES,
   log_count: forecasts.length,
   completed_count: completed.length,
@@ -314,8 +368,8 @@ const output = {
     : latestWaiting
       ? { kind: "waiting", ...latestWaiting }
       : null,
-  completed: completed.slice(-20),
-  waiting: waiting.slice(-20),
+  completed: completedWithKind,
+  waiting: waitingWithKind,
 };
 
 for (const relativePath of [PROCESSED_OUTPUT, PUBLIC_OUTPUT]) {

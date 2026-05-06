@@ -187,8 +187,8 @@ ${markdownTable(status.top_predictions.traffic_congestion)}
 - Latest comparison top observed congestion: ${
   status.validation.latest_pressure_comparison?.overall?.top_actual_congestion_dong ?? "-"
 }
-- Latest rank Spearman: ${
-  status.validation.latest_pressure_comparison?.overall?.priority_vs_congestion_rank_spearman ?? "-"
+- Latest road-signal Spearman (policy check): ${
+  status.validation.latest_pressure_comparison?.overall?.priority_vs_road_congestion_spearman ?? "-"
 }
 `;
 

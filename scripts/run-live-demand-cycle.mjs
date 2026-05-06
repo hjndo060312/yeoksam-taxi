@@ -58,6 +58,16 @@ async function runStep(label, command, args) {
   });
 }
 
+async function tryStep(label, command, args) {
+  try {
+    await runStep(label, command, args);
+    return true;
+  } catch (error) {
+    console.warn(`\n[warn] ${label} failed: ${error?.message ?? error}`);
+    return false;
+  }
+}
+
 async function readJsonIfExists(filePath) {
   try {
     return JSON.parse(await readFile(filePath, "utf8"));
@@ -94,8 +104,32 @@ async function latestRawPath(relativeDir) {
         mtimeMs: (await stat(path.join(dayRoot, file))).mtimeMs,
       })),
     );
-    const latest = infos.sort((left, right) => left.mtimeMs - right.mtimeMs).at(-1);
-    return latest ? path.join(dayRoot, latest.file) : null;
+    const sorted = infos.sort((left, right) => left.mtimeMs - right.mtimeMs);
+    const candidates = sorted.map((info) => path.join(dayRoot, info.file));
+
+    const preferOk = relativeDir.includes("weather") || relativeDir.includes("citydata");
+    if (!preferOk) {
+      return candidates.at(-1) ?? null;
+    }
+
+    const isOkSnapshot = async (filePath) => {
+      try {
+        const json = JSON.parse(await readFile(filePath, "utf8"));
+        const metaOk = json?.meta?.ok;
+        if (typeof metaOk === "boolean") return metaOk;
+        if (relativeDir.includes("citydata")) {
+          return Array.isArray(json?.results) && json.results.some((r) => r?.ok);
+        }
+        return true;
+      } catch {
+        return false;
+      }
+    };
+
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+      if (await isOkSnapshot(candidates[index])) return candidates[index];
+    }
+    return candidates.at(-1) ?? null;
   } catch {
     return null;
   }
@@ -159,13 +193,18 @@ function trafficAggregate(traffic) {
 const args = process.argv.slice(2);
 const targetArg = args.find((arg) => !arg.startsWith("--"));
 const skipCollect = args.includes("--skip-collect");
+const offlineMode = args.includes("--offline");
+const nodeModels = args.includes("--node-models");
 const targetDatetime = targetArg ?? defaultTargetHour();
 const pythonCommand = process.env.PYTHON_BIN ?? (process.platform === "win32" ? "python" : "python3");
 
-if (!skipCollect) {
-  await runStep("citydata", "node", ["scripts/collect-citydata.mjs"]);
-  await runStep("weather", "node", ["scripts/collect-weather.mjs"]);
-  await runStep("traffic", "node", ["scripts/extract-traffic-links.mjs"]);
+if (!skipCollect && !offlineMode) {
+  const citydataOk = await tryStep("citydata", "node", ["scripts/collect-citydata.mjs"]);
+  const weatherOk = await tryStep("weather", "node", ["scripts/collect-weather.mjs"]);
+  const trafficOk = await tryStep("traffic", "node", ["scripts/extract-traffic-links.mjs"]);
+  if (!(citydataOk && weatherOk && trafficOk)) {
+    console.warn("[warn] Live collection incomplete; continuing with latest cached raw snapshots.");
+  }
 }
 
 const citydataPath = await latestRawPath("data/raw/citydata");
@@ -180,28 +219,48 @@ const modelPath = (await pathExists(liveModelPath))
   ? liveModelPath
   : "data/processed/model/dong_demand_proxy_model.joblib";
 const weatherPath = await latestRawPath("data/raw/weather");
-const forecastArgs = [
-  "scripts/predict_dong_demand_proxy.py",
-  targetDatetime,
-  "--out",
-  "public/forecast/latest.json",
-  "--strategy",
-  "auto",
-  "--model",
-  modelPath,
-];
-if (weatherPath) {
-  forecastArgs.push("--weather-snapshot", weatherPath);
+const forecastOk = !nodeModels
+  ? await tryStep("forecast", pythonCommand, [
+    "scripts/predict_dong_demand_proxy.py",
+    targetDatetime,
+    "--out",
+    "public/forecast/latest.json",
+    "--strategy",
+    "auto",
+    "--model",
+    modelPath,
+    ...(weatherPath ? ["--weather-snapshot", weatherPath] : []),
+  ])
+  : false;
+
+if (!forecastOk) {
+  await runStep("forecast(node)", "node", [
+    "scripts/predict_dong_demand_proxy.mjs",
+    targetDatetime,
+    "--out",
+    "public/forecast/latest.json",
+    ...(weatherPath ? ["--weather-snapshot", weatherPath] : []),
+  ]);
 }
 
-await runStep("forecast", pythonCommand, forecastArgs);
-await runStep("traffic-forecast", pythonCommand, [
-  "scripts/predict_traffic_forecast.py",
-  targetDatetime,
-]);
+const trafficOk = !nodeModels
+  ? await tryStep("traffic-forecast", pythonCommand, [
+    "scripts/predict_traffic_forecast.py",
+    targetDatetime,
+  ])
+  : false;
+
+if (!trafficOk) {
+  await runStep("traffic-forecast(node)", "node", [
+    "scripts/predict_traffic_forecast.mjs",
+    targetDatetime,
+  ]);
+}
+
 await runStep("taxi-pressure", "node", ["scripts/build-taxi-pressure-forecast.mjs"]);
 await runStep("traffic-comparison", "node", ["scripts/build-traffic-forecast-comparison.mjs"]);
 await runStep("taxi-pressure-comparison", "node", ["scripts/build-taxi-pressure-comparison.mjs"]);
+await runStep("public-pressure-baseline", "node", ["scripts/build-public-pressure-baseline.mjs"]);
 await runStep("dispatch", "node", ["module4_dispatch/run_dispatch_policy.mjs"]);
 await runStep("data-summary", "node", ["scripts/build-data-summary.mjs"]);
 

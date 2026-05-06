@@ -17,6 +17,59 @@ async function readJsonIfExists(relativePath, fallback = null) {
 
 async function latestRawPath(...segments) {
   const rawRoot = path.join(projectRoot, ...segments);
+  const kind = segments.includes("citydata")
+    ? "citydata"
+    : segments.includes("weather")
+      ? "weather"
+      : "other";
+
+  const isOkSnapshot = async (filePath) => {
+    try {
+      const json = JSON.parse(await readFile(filePath, "utf8"));
+      const metaOk = json?.meta?.ok;
+      if (typeof metaOk === "boolean") return metaOk;
+      if (kind === "citydata") {
+        return Array.isArray(json?.results) && json.results.some((r) => r?.ok);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  try {
+    const days = (await readdir(rawRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => /^\d{4}-\d{2}-\d{2}$/.test(name))
+      .sort();
+    const day = days.at(-1);
+    if (!day) return null;
+    const dayRoot = path.join(rawRoot, day);
+    const files = (await readdir(dayRoot))
+      .filter((file) => file.endsWith(".json"))
+      .sort();
+    const fileInfos = await Promise.all(
+      files.map(async (file) => ({
+        file,
+        mtimeMs: (await stat(path.join(dayRoot, file))).mtimeMs,
+      })),
+    );
+    const sorted = fileInfos.sort((left, right) => left.mtimeMs - right.mtimeMs);
+    const candidates = sorted.map((info) => path.join(dayRoot, info.file));
+    if (kind === "other") return candidates.at(-1) ?? null;
+
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+      if (await isOkSnapshot(candidates[index])) return candidates[index];
+    }
+    return candidates.at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function latestRawAttemptPath(...segments) {
+  const rawRoot = path.join(projectRoot, ...segments);
   try {
     const days = (await readdir(rawRoot, { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
@@ -92,10 +145,18 @@ function summarizeCitydata(raw) {
   };
 }
 
+const latestAttemptPath = await latestRawAttemptPath("data", "raw", "citydata");
 const latestPath = await latestRawPath("data", "raw", "citydata");
+const latestWeatherAttemptPath = await latestRawAttemptPath("data", "raw", "weather");
 const latestWeatherPath = await latestRawPath("data", "raw", "weather");
 const rawCitydata = latestPath
   ? JSON.parse(await readFile(latestPath, "utf8"))
+  : null;
+const rawCitydataAttempt = latestAttemptPath
+  ? JSON.parse(await readFile(latestAttemptPath, "utf8"))
+  : null;
+const rawWeatherAttempt = latestWeatherAttemptPath
+  ? JSON.parse(await readFile(latestWeatherAttemptPath, "utf8"))
   : null;
 const forecast = await readJsonIfExists("public/forecast/latest.json");
 const dispatchPlan = await readJsonIfExists("public/dispatch-plan.json");
@@ -111,6 +172,14 @@ const summary = {
   raw_weather_path: latestWeatherPath
     ? path.relative(projectRoot, latestWeatherPath)
     : null,
+  raw_citydata_attempt_path: latestAttemptPath
+    ? path.relative(projectRoot, latestAttemptPath)
+    : null,
+  raw_weather_attempt_path: latestWeatherAttemptPath
+    ? path.relative(projectRoot, latestWeatherAttemptPath)
+    : null,
+  raw_citydata_attempt_meta: rawCitydataAttempt?.meta ?? null,
+  raw_weather_attempt_meta: rawWeatherAttempt?.meta ?? null,
   citydata: rawCitydata
     ? summarizeCitydata(rawCitydata)
     : {

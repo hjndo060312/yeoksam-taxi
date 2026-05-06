@@ -100,7 +100,7 @@ function zonedDateTimeParts(date: Date, timeZone = SIMULATION_TIME_ZONE) {
     minute: "2-digit",
     hour12: false,
   });
-  const partMap = new Map(
+  const partMap = new globalThis.Map(
     formatter.formatToParts(date).map((part) => [part.type, part.value]),
   );
 
@@ -248,7 +248,7 @@ export function formatKstDateTime(value: string | number | Date) {
     hour12: false,
   }).formatToParts(date);
 
-  const partMap = new Map(parts.map((part) => [part.type, part.value]));
+  const partMap = new globalThis.Map(parts.map((part) => [part.type, part.value]));
   return `${partMap.get("year")}-${partMap.get("month")}-${partMap.get("day")} ${partMap.get("hour")}:${partMap.get("minute")} KST`;
 }
 

@@ -303,7 +303,9 @@ function formatKstFullDateTime(value: string | null | undefined) {
     minute: "2-digit",
     hour12: false,
   }).formatToParts(parsed);
-  const partMap = new Map(parts.map((part) => [part.type, part.value]));
+  const partMap = new globalThis.Map(
+    parts.map((part) => [part.type, part.value]),
+  );
 
   return [
     partMap.get("year"),
@@ -642,17 +644,19 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   const forecastSource: ForecastSource =
     forecastResult?.regions?.length ? "model" : "sample";
   const forecastResultLabel =
-    forecastResult?.source === "demo" ? "데모 예측" : "모델 예측";
+    forecastResult?.source === "demo" ? "대체 시나리오" : "공개데이터 예측";
   const forecastStrategyText = forecastStrategyLabel(
     forecastResult?.strategy ?? dispatchPlan?.forecast_strategy,
   );
-  const forecastAverageConfidence =
-    forecastResult?.regions?.length
-      ? forecastResult.regions.reduce(
-        (sum, region) => sum + region.confidence,
-        0,
-      ) / forecastResult.regions.length
-      : null;
+  const forecastAverageConfidence = useMemo(() => {
+    if (!forecastResult?.regions?.length) return null;
+    const confidenceValues = forecastResult.regions
+      .map((region) => region.confidence)
+      .filter((value): value is number => typeof value === "number");
+    if (!confidenceValues.length) return null;
+    const sum = confidenceValues.reduce((acc, value) => acc + value, 0);
+    return sum / confidenceValues.length;
+  }, [forecastResult]);
   const isForecastLowConfidence =
     forecastAverageConfidence != null && forecastAverageConfidence < 0.6;
   const forecastBadgeText =
@@ -662,7 +666,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
         forecastStrategyText,
         isForecastLowConfidence ? "신뢰도 낮음" : null,
       ].filter(Boolean).join(" · ")
-      : "샘플 예측";
+      : "기준 시나리오";
   const forecastResultBadgeClass =
     forecastResult?.source === "demo"
       ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
@@ -675,10 +679,13 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     forecastSource === "model"
       ? `${PANEL_TOKEN_CLASS} border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-200`
       : `${PANEL_TOKEN_CLASS} border-amber-300/25 bg-amber-300/[0.08] text-amber-200`;
-  const forecastSourceTokenText =
-    forecastSource === "model" && forecastResult
-      ? `모델 예측 · ${formatKstFullDateTime(forecastResult.target_datetime)}`
-      : "데모 데이터";
+  const forecastSourceTokenText = (() => {
+    if (!(forecastSource === "model" && forecastResult)) return "기준 시나리오";
+    const targetLabel = formatKstFullDateTime(forecastResult.target_datetime);
+    const strategy = String(forecastResult.strategy ?? "");
+    const strategyLabel = strategy === "pattern" ? "패턴 베이스라인" : "모델";
+    return `수요 프록시 ${strategyLabel} · ${targetLabel}`;
+  })();
   const sortedDispatchDecisions = useMemo(
     () =>
       [...(dispatchPlan?.decisions ?? [])].sort(
@@ -688,7 +695,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   );
   const dispatchByDong = useMemo(
     () =>
-      new Map(
+      new globalThis.Map(
         sortedDispatchDecisions.map(
           (decision) => [decision.dong_name, decision] as const,
         ),
@@ -711,7 +718,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
         contextPrior: 0,
         publicTransitSignal: 0,
         contextMultiplier: 1,
-        confidence: r.confidence,
+        confidence: r.confidence ?? undefined,
         source: "model" as const,
       }));
     }
@@ -720,7 +727,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
 
   const demandByDong = useMemo(
     () =>
-      new Map(
+      new globalThis.Map(
         effectiveDongs.map(
           (dong) => [dong.dongName, dong] as const,
         ),

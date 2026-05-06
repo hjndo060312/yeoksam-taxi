@@ -47,12 +47,32 @@ function kstParts(date = new Date()) {
 
 async function fetchPoi(apiKey, code) {
   const url = `http://openapi.seoul.go.kr:8088/${apiKey}/json/citydata/1/5/${code}`;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) {
-    return { code, ok: false, status: res.status };
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) {
+      let errorText = null;
+      try {
+        errorText = (await res.text()).slice(0, 400);
+      } catch {
+        errorText = null;
+      }
+      return {
+        code,
+        ok: false,
+        status: res.status,
+        error: errorText,
+      };
+    }
+    const json = await res.json();
+    return { code, ok: true, status: res.status, data: json };
+  } catch (error) {
+    return {
+      code,
+      ok: false,
+      status: null,
+      error: error?.message ?? String(error),
+    };
   }
-  const json = await res.json();
-  return { code, ok: true, data: json };
 }
 
 await loadEnvFile(path.join(projectRoot, ".env.local"));
@@ -66,9 +86,21 @@ if (!apiKey) {
 const collectedAt = new Date();
 const kst = kstParts(collectedAt);
 const results = await Promise.all(POI_CODES.map((code) => fetchPoi(apiKey, code)));
+const ok = results.some((result) => result.ok);
+const errors = results
+  .filter((result) => !result.ok)
+  .map((result) => ({
+    code: result.code,
+    status: result.status ?? null,
+    error: result.error ?? null,
+  }));
 const payload = {
   meta: {
     source: "Seoul citydata OA-21285",
+    ok,
+    status: ok ? 200 : null,
+    error: ok ? null : "All citydata POI requests failed (network blocked or API key invalid).",
+    errors,
     collected_at: collectedAt.toISOString(),
     poi_codes: POI_CODES,
   },
@@ -81,3 +113,7 @@ const outputPath = path.join(outputDir, `${kst.time}.json`);
 await writeFile(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
 
 console.log(`Wrote ${path.relative(projectRoot, outputPath)}`);
+if (!ok) {
+  console.log(`Citydata snapshot saved with warning: ${payload.meta.error ?? "unknown"}`);
+  process.exitCode = 2;
+}
