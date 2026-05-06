@@ -14,7 +14,7 @@
     "holiday_names": ""
   },
   "weather": "clear",
-  "generated_at": "2026-05-06T16:03:02+0900",
+  "generated_at": "2026-05-06T16:11:44+0900",
   "model_target": "target_inbound_boardings_per_1k_pop_t_plus_1h",
   "regions": [
     {
