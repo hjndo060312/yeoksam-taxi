@@ -17,6 +17,59 @@ async function readJsonIfExists(relativePath, fallback = null) {
 
 async function latestRawPath(...segments) {
   const rawRoot = path.join(projectRoot, ...segments);
+  const kind = segments.includes("citydata")
+    ? "citydata"
+    : segments.includes("weather")
+      ? "weather"
+      : "other";
+
+  const isOkSnapshot = async (filePath) => {
+    try {
+      const json = JSON.parse(await readFile(filePath, "utf8"));
+      const metaOk = json?.meta?.ok;
+      if (typeof metaOk === "boolean") return metaOk;
+      if (kind === "citydata") {
+        return Array.isArray(json?.results) && json.results.some((r) => r?.ok);
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  try {
+    const days = (await readdir(rawRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .filter((name) => /^\d{4}-\d{2}-\d{2}$/.test(name))
+      .sort();
+    const day = days.at(-1);
+    if (!day) return null;
+    const dayRoot = path.join(rawRoot, day);
+    const files = (await readdir(dayRoot))
+      .filter((file) => file.endsWith(".json"))
+      .sort();
+    const fileInfos = await Promise.all(
+      files.map(async (file) => ({
+        file,
+        mtimeMs: (await stat(path.join(dayRoot, file))).mtimeMs,
+      })),
+    );
+    const sorted = fileInfos.sort((left, right) => left.mtimeMs - right.mtimeMs);
+    const candidates = sorted.map((info) => path.join(dayRoot, info.file));
+    if (kind === "other") return candidates.at(-1) ?? null;
+
+    for (let index = candidates.length - 1; index >= 0; index -= 1) {
+      if (await isOkSnapshot(candidates[index])) return candidates[index];
+    }
+    return candidates.at(-1) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function latestRawAttemptPath(...segments) {
+  const rawRoot = path.join(projectRoot, ...segments);
   try {
     const days = (await readdir(rawRoot, { withFileTypes: true }))
       .filter((entry) => entry.isDirectory())
@@ -92,14 +145,24 @@ function summarizeCitydata(raw) {
   };
 }
 
+const latestAttemptPath = await latestRawAttemptPath("data", "raw", "citydata");
 const latestPath = await latestRawPath("data", "raw", "citydata");
+const latestWeatherAttemptPath = await latestRawAttemptPath("data", "raw", "weather");
 const latestWeatherPath = await latestRawPath("data", "raw", "weather");
 const rawCitydata = latestPath
   ? JSON.parse(await readFile(latestPath, "utf8"))
   : null;
+const rawCitydataAttempt = latestAttemptPath
+  ? JSON.parse(await readFile(latestAttemptPath, "utf8"))
+  : null;
+const rawWeatherAttempt = latestWeatherAttemptPath
+  ? JSON.parse(await readFile(latestWeatherAttemptPath, "utf8"))
+  : null;
 const forecast = await readJsonIfExists("public/forecast/latest.json");
 const dispatchPlan = await readJsonIfExists("public/dispatch-plan.json");
 const featureSnapshot = await readJsonIfExists("public/feature-snapshot.json");
+const poiFeatures = await readJsonIfExists("public/poi-features.json");
+const poiForecastComparison = await readJsonIfExists("public/poi-forecast-comparison.json");
 const taxiPressure = await readJsonIfExists("public/taxi-pressure/latest.json");
 const taxiPressureComparison = await readJsonIfExists("public/taxi-pressure-comparison.json");
 
@@ -111,6 +174,14 @@ const summary = {
   raw_weather_path: latestWeatherPath
     ? path.relative(projectRoot, latestWeatherPath)
     : null,
+  raw_citydata_attempt_path: latestAttemptPath
+    ? path.relative(projectRoot, latestAttemptPath)
+    : null,
+  raw_weather_attempt_path: latestWeatherAttemptPath
+    ? path.relative(projectRoot, latestWeatherAttemptPath)
+    : null,
+  raw_citydata_attempt_meta: rawCitydataAttempt?.meta ?? null,
+  raw_weather_attempt_meta: rawWeatherAttempt?.meta ?? null,
   citydata: rawCitydata
     ? summarizeCitydata(rawCitydata)
     : {
@@ -137,6 +208,7 @@ const summary = {
         generated_at: dispatchPlan.generated_at,
         top_region: dispatchPlan.decisions?.[0] ?? null,
         decision_count: dispatchPlan.decisions?.length ?? 0,
+        policy_effect_summary: dispatchPlan.policy_effect_summary ?? null,
       }
     : null,
   taxi_pressure: taxiPressure
@@ -163,6 +235,27 @@ const summary = {
         row_count: featureSnapshot.row_count,
         top_area: featureSnapshot.features?.[0] ?? null,
         source: featureSnapshot.source,
+      }
+    : null,
+  poi_features: poiFeatures
+    ? {
+        generated_at: poiFeatures.generated_at,
+        row_count: poiFeatures.row_count,
+        live_poi_count: poiFeatures.live_poi_count,
+        supplemental_poi_count: poiFeatures.supplemental_poi_count,
+        citydata_collection_count: poiFeatures.citydata_collection_count,
+        top_live_poi: poiFeatures.top_live_poi ?? null,
+        source: poiFeatures.source,
+        note: poiFeatures.note,
+      }
+    : null,
+  poi_forecast_validation: poiForecastComparison
+    ? {
+        generated_at: poiForecastComparison.generated_at,
+        comparison_type: poiForecastComparison.comparison_type,
+        completed_count: poiForecastComparison.completed_count,
+        waiting_count: poiForecastComparison.waiting_count,
+        latest: poiForecastComparison.latest ?? null,
       }
     : null,
 };

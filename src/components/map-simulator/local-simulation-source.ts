@@ -268,21 +268,27 @@ export function createLocalSimulationSource(): SimulationSource {
   const vehicles: LocalVehicle[] = [];
   const taxiVehicles: LocalVehicle[] = [];
   const trafficVehicles: LocalVehicle[] = [];
-  const taxiById = new Map<string, LocalVehicle>();
-  const routeCache = new Map<string, RouteTemplate | null>();
-  const frameSignalStates = new Map<string, SignalFlow>();
-  const activePickupsByHotspot = new Map<string, number>();
-  const activeDropoffsByHotspot = new Map<string, number>();
-  const intersectionOccupancy = new Map<string, SignalAxisOccupancy>();
-  const intersectionApproachDemand = new Map<string, SignalApproachDemand>();
-  const intersectionApproachDistance = new Map<string, SignalApproachDistance>();
-  const intersectionExitOccupancy = new Map<string, SignalDirectionalOccupancy>();
-  const proximityBuckets: VehicleProximityBuckets = new Map();
+  const taxiById = new globalThis.Map<string, LocalVehicle>();
+  const routeCache = new globalThis.Map<string, RouteTemplate | null>();
+  const frameSignalStates = new globalThis.Map<string, SignalFlow>();
+  const activePickupsByHotspot = new globalThis.Map<string, number>();
+  const activeDropoffsByHotspot = new globalThis.Map<string, number>();
+  const intersectionOccupancy = new globalThis.Map<string, SignalAxisOccupancy>();
+  const intersectionApproachDemand = new globalThis.Map<string, SignalApproachDemand>();
+  const intersectionApproachDistance = new globalThis.Map<
+    string,
+    SignalApproachDistance
+  >();
+  const intersectionExitOccupancy = new globalThis.Map<
+    string,
+    SignalDirectionalOccupancy
+  >();
+  const proximityBuckets: VehicleProximityBuckets = new globalThis.Map();
   const vehicleSimulationSamples: LocalVehicleSimulationSample[] = [];
   let hotspotDemandMapsDirty = true;
 
-  let signalById = new Map<string, SignalData>();
-  let signalByKey = new Map<string, SignalData>();
+  let signalById = new globalThis.Map<string, SignalData>();
+  let signalByKey = new globalThis.Map<string, SignalData>();
   let dispatchPlanner: ReturnType<typeof ACTIVE_DISPATCH_PLANNER.createSession> | null =
     null;
 
@@ -348,8 +354,8 @@ export function createLocalSimulationSource(): SimulationSource {
       syncActiveHotspotDemandMaps();
     }
 
-    const pickupDemandMap = new Map(activePickupsByHotspot);
-    const dropoffDemandMap = new Map(activeDropoffsByHotspot);
+    const pickupDemandMap = new globalThis.Map(activePickupsByHotspot);
+    const dropoffDemandMap = new globalThis.Map(activeDropoffsByHotspot);
     const excludedVehicle = excludedVehicleId
       ? taxiById.get(excludedVehicleId) ?? null
       : null;
@@ -1152,10 +1158,10 @@ export function createLocalSimulationSource(): SimulationSource {
         ...nextConfig,
         clock: nextClock,
       };
-      signalById = new Map(
+      signalById = new globalThis.Map(
         nextStaticContext.signals.map((signal) => [signal.id, signal] as const),
       );
-      signalByKey = new Map(
+      signalByKey = new globalThis.Map(
         nextStaticContext.signals.map((signal) => [signal.key, signal] as const),
       );
       syncEnvironmentMultiplier();

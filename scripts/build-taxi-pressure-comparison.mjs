@@ -225,10 +225,14 @@ function comparePressureToTraffic(forecast, trafficSnapshot) {
     feature_datetime: forecast.feature_datetime ?? null,
     actual_observed_at: trafficSnapshot.observed_at.toISOString(),
     actual_snapshot_path: trafficSnapshot.relative_path,
-    comparison_type: "taxi_pressure_priority_vs_observed_citydata_congestion",
+    comparison_type: "taxi_pressure_policy_check_vs_observed_road_signal",
     note:
-      "Taxi pressure is a public-data proxy. Observed values are Seoul citydata road congestion/speed after the target time, not taxi-call labels.",
+      "Policy check only — not accuracy scoring. "
+      + "Taxi pressure combines demand proxy + traffic volume + congestion + road accessibility. "
+      + "Observed road congestion alone is not a valid ground-truth label for a composite policy score. "
+      + "Spearman here is a supplementary signal; a negative value does not mean the model is wrong.",
     overall: {
+      check_type: "policy_check",
       row_count: rankedRows.length,
       congestion_mae: round(
         absCongestion.reduce((sum, value) => sum + value, 0) / Math.max(absCongestion.length, 1),
@@ -238,7 +242,7 @@ function comparePressureToTraffic(forecast, trafficSnapshot) {
         absSpeed.reduce((sum, value) => sum + value, 0) / Math.max(absSpeed.length, 1),
         2,
       ),
-      priority_vs_congestion_rank_spearman: round(
+      priority_vs_road_congestion_spearman: round(
         pearson(
           rankedRows.map((row) => row.predicted_priority_rank),
           rankedRows.map((row) => row.actual_congestion_rank),

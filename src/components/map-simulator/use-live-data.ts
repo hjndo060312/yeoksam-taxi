@@ -4,7 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import type { WeatherMode } from "./simulation-environment";
 
 export interface LiveArea {
+  areaCode: string;
   areaName: string;
+  coverageDong: string | null;
+  category: string | null;
+  lon: number | null;
+  lat: number | null;
   congestionLevel: "여유" | "보통" | "약간 붐빔" | "붐빔" | "매우 붐빔" | string;
   speedKmh: number;
   trafficIndex: "원활" | "서행" | "정체" | string;
@@ -87,8 +92,14 @@ async function fetchLiveData(): Promise<LiveData> {
     (place: Record<string, unknown>) => {
       const pop = place.live_population as Record<string, unknown> ?? {};
       const traffic = place.road_traffic as Record<string, unknown> ?? {};
+      const poiMeta = place.poi_meta as Record<string, unknown> ?? {};
       return {
+        areaCode: String(place.area_code ?? ""),
         areaName: String(place.area_name ?? ""),
+        coverageDong: poiMeta.coverage_dong == null ? null : String(poiMeta.coverage_dong),
+        category: poiMeta.category == null ? null : String(poiMeta.category),
+        lon: poiMeta.lon == null ? null : Number(poiMeta.lon),
+        lat: poiMeta.lat == null ? null : Number(poiMeta.lat),
         congestionLevel: String(pop.congestion_level ?? "여유"),
         speedKmh: Number(traffic.speed_kmh ?? 0),
         trafficIndex: String(traffic.index ?? "원활"),

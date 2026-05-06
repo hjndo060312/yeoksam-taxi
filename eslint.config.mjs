@@ -13,6 +13,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Sandbox temp dirs may become unreadable (e.g. ensurepip temp ACLs).
+    "data/tmp/**",
   ]),
 ]);
 

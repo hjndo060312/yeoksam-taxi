@@ -1,4 +1,20 @@
-const POI_CODES = ["POI001", "POI014", "POI034", "POI037", "POI071", "POI042", "POI080"];
+import poiConfig from "../../../../data/config/gangnam-pois.json";
+
+type PoiConfigEntry = {
+  code: string;
+  name?: string;
+  coverage_dong?: string;
+  category?: string;
+  lon?: number;
+  lat?: number;
+  collection_enabled?: boolean;
+  note?: string;
+};
+
+const CITYDATA_POIS = (poiConfig.citydata_collection as PoiConfigEntry[])
+  .filter((poi) => poi.collection_enabled !== false && poi.code);
+const POI_BY_CODE = new Map(CITYDATA_POIS.map((poi) => [poi.code, poi]));
+const POI_CODES = CITYDATA_POIS.map((poi) => poi.code);
 
 type JsonRecord = Record<string, unknown>;
 
@@ -33,6 +49,7 @@ function unwrapCitydata(json: JsonRecord): JsonRecord | null {
 }
 
 async function fetchPoi(apiKey: string, code: string) {
+  const poiMeta = POI_BY_CODE.get(code);
   const url = `http://openapi.seoul.go.kr:8088/${apiKey}/json/citydata/1/5/${code}`;
   const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) return null;
@@ -53,6 +70,14 @@ async function fetchPoi(apiKey: string, code: string) {
   return {
     area_name: stringValue(data.AREA_NM, code),
     area_code: code,
+    poi_meta: {
+      configured_name: poiMeta?.name ?? null,
+      coverage_dong: poiMeta?.coverage_dong ?? null,
+      category: poiMeta?.category ?? null,
+      lon: poiMeta?.lon ?? null,
+      lat: poiMeta?.lat ?? null,
+      note: poiMeta?.note ?? null,
+    },
     fetched_at: new Date().toISOString(),
     live_population: {
       observed_at: stringValue(pop.PPLTN_TIME ?? data.PPLTN_TIME),

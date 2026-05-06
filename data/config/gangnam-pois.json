@@ -1,0 +1,185 @@
+{
+  "version": 1,
+  "generated_at": "2026-05-06",
+  "description": "Gangnam-focused POI registry for Seoul citydata collection and OSM-backed supplemental watch points. Citydata entries are official OA-21285 hotspot codes; supplemental entries are map/context points only.",
+  "official_reference": {
+    "name": "Seoul real-time citydata OA-21285 update notice",
+    "url": "https://data.seoul.go.kr/together/notice/datasetNoticeView.do?bbsCd=10008&ditcCd=&pageIndex=1&seq=27399e1302ead42db866fa14824c4c56"
+  },
+  "citydata_collection": [
+    {
+      "code": "POI001",
+      "name": "강남 MICE 관광특구",
+      "coverage_dong": "삼성1동",
+      "category": "tourism_business",
+      "lon": 127.059,
+      "lat": 37.5127,
+      "collection_enabled": true,
+      "note": "COEX/MICE district proxy for Samsung-dong visitor pressure."
+    },
+    {
+      "code": "POI014",
+      "name": "강남역",
+      "coverage_dong": "역삼1동",
+      "category": "station_commercial",
+      "lon": 127.0276,
+      "lat": 37.498,
+      "collection_enabled": true,
+      "note": "High-volume station and commercial demand anchor."
+    },
+    {
+      "code": "POI034",
+      "name": "선릉역",
+      "coverage_dong": "삼성2동",
+      "category": "station_office",
+      "lon": 127.049,
+      "lat": 37.5045,
+      "collection_enabled": true,
+      "note": "Station and office-flow proxy around Seolleung."
+    },
+    {
+      "code": "POI037",
+      "name": "신논현역·논현역",
+      "coverage_dong": "논현1동",
+      "category": "station_nightlife",
+      "lon": 127.023,
+      "lat": 37.5077,
+      "collection_enabled": true,
+      "note": "Combined station hotspot for Nonhyeon/Gangnam north edge."
+    },
+    {
+      "code": "POI041",
+      "name": "양재역",
+      "coverage_dong": "대치4동",
+      "category": "adjacent_station",
+      "lon": 127.034,
+      "lat": 37.4844,
+      "collection_enabled": true,
+      "note": "Adjacent south-edge station signal; useful for spillover but not direct taxi-call ground truth."
+    },
+    {
+      "code": "POI042",
+      "name": "역삼역",
+      "coverage_dong": "역삼1동",
+      "category": "station_office",
+      "lon": 127.037,
+      "lat": 37.5008,
+      "collection_enabled": true,
+      "note": "Core Yeoksam office-flow proxy."
+    },
+    {
+      "code": "POI059",
+      "name": "가로수길",
+      "coverage_dong": "신사동",
+      "category": "commercial_street",
+      "lon": 127.0233,
+      "lat": 37.521,
+      "collection_enabled": true,
+      "note": "Sinsa/Garosu-gil retail and dining visitor proxy."
+    },
+    {
+      "code": "POI071",
+      "name": "압구정로데오거리",
+      "coverage_dong": "신사동",
+      "category": "commercial_street",
+      "lon": 127.0405,
+      "lat": 37.5275,
+      "collection_enabled": true,
+      "note": "North Gangnam commercial signal used as a spillover POI."
+    },
+    {
+      "code": "POI080",
+      "name": "청담동 명품거리",
+      "coverage_dong": "청담동",
+      "category": "commercial_street",
+      "lon": 127.0456,
+      "lat": 37.5248,
+      "collection_enabled": true,
+      "note": "Cheongdam retail visitor and road pressure proxy."
+    },
+    {
+      "code": "POI018",
+      "name": "교대역",
+      "coverage_dong": "대치4동",
+      "category": "adjacent_station",
+      "lon": 127.0146,
+      "lat": 37.4934,
+      "collection_enabled": true,
+      "note": "Adjacent west/south station signal for commute spillover; marked as indirect."
+    }
+  ],
+  "supplemental_watchlist": [
+    {
+      "id": "osm-hakdong-station",
+      "name": "학동역",
+      "coverage_dong": "논현2동",
+      "category": "station_context",
+      "lon": 127.03075,
+      "lat": 37.513957,
+      "citydata_code": null,
+      "collection_enabled": false,
+      "source": "OSM transit.geojson",
+      "note": "No confirmed Seoul citydata hotspot code; keep as map/context POI."
+    },
+    {
+      "id": "osm-eonju-station",
+      "name": "언주역",
+      "coverage_dong": "역삼1동",
+      "category": "station_context",
+      "lon": 127.033875,
+      "lat": 37.507321,
+      "citydata_code": null,
+      "collection_enabled": false,
+      "source": "OSM transit.geojson",
+      "note": "No confirmed Seoul citydata hotspot code; keep as map/context POI."
+    },
+    {
+      "id": "osm-gangnam-gu-office-station",
+      "name": "강남구청역",
+      "coverage_dong": "청담동",
+      "category": "station_context",
+      "lon": 127.041286,
+      "lat": 37.517176,
+      "citydata_code": null,
+      "collection_enabled": false,
+      "source": "OSM transit.geojson",
+      "note": "No confirmed Seoul citydata hotspot code; keep as map/context POI."
+    },
+    {
+      "id": "osm-daechi-station",
+      "name": "대치역",
+      "coverage_dong": "대치4동",
+      "category": "station_context",
+      "lon": 127.063,
+      "lat": 37.4945,
+      "citydata_code": null,
+      "collection_enabled": false,
+      "source": "OSM transit/road context",
+      "note": "No confirmed Seoul citydata hotspot code; keep as map/context POI."
+    },
+    {
+      "id": "osm-hanti-station",
+      "name": "한티역",
+      "coverage_dong": "대치4동",
+      "category": "station_context",
+      "lon": 127.0522,
+      "lat": 37.4977,
+      "citydata_code": null,
+      "collection_enabled": false,
+      "source": "OSM transit.geojson",
+      "note": "No confirmed Seoul citydata hotspot code; keep as map/context POI."
+    },
+    {
+      "id": "osm-teheran-ro",
+      "name": "테헤란로",
+      "coverage_dong": "역삼1동",
+      "category": "road_corridor_context",
+      "lon": 127.0395,
+      "lat": 37.503,
+      "citydata_code": null,
+      "collection_enabled": false,
+      "source": "OSM road context",
+      "note": "Corridor-level context POI. Use TOPIS/road graph rather than citydata hotspot population."
+    }
+  ]
+}

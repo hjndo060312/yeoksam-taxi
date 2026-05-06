@@ -6,15 +6,18 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
 
-const POI_CODES = [
-  "POI001",
-  "POI014",
-  "POI034",
-  "POI037",
-  "POI071",
-  "POI042",
-  "POI080",
-];
+async function loadPoiCodes() {
+  const configPath = path.join(projectRoot, "data", "config", "gangnam-pois.json");
+  try {
+    const config = JSON.parse(await readFile(configPath, "utf8"));
+    const codes = (config.citydata_collection ?? [])
+      .filter((poi) => poi?.collection_enabled !== false && poi?.code)
+      .map((poi) => poi.code);
+    return [...new Set(codes)];
+  } catch {
+    return ["POI001", "POI014", "POI034", "POI037", "POI071", "POI042", "POI080"];
+  }
+}
 
 async function loadEnvFile(filePath) {
   try {
@@ -69,6 +72,7 @@ if (!apiKey) {
 
 const collectedAt = new Date();
 const kst = kstTimestamp(collectedAt);
+const POI_CODES = await loadPoiCodes();
 const places = await Promise.all(POI_CODES.map((code) => fetchPoi(apiKey, code)));
 
 const payload = {
