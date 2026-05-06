@@ -1,7 +1,7 @@
 {
   "source": "model",
-  "target_datetime": "2026-05-07T06:00:00+09:00",
-  "feature_datetime": "2026-05-07T05:00:00+09:00",
+  "target_datetime": "2026-05-07T07:00:00+09:00",
+  "feature_datetime": "2026-05-07T06:00:00+09:00",
   "strategy": "pattern",
   "pattern_cache_used": true,
   "feature_set": "live_compatible_calendar_weather_static",
@@ -14,62 +14,62 @@
     "holiday_names": ""
   },
   "weather": "clear",
-  "generated_at": "2026-05-07T05:39:53+0900",
+  "generated_at": "2026-05-07T06:32:56+0900",
   "model_target": "target_inbound_boardings_per_1k_pop_t_plus_1h",
   "regions": [
     {
       "dong_name": "대치4동",
       "score": 1.0,
       "confidence": 0.58,
-      "raw_prediction": 161.78802
+      "raw_prediction": 405.858116
     },
     {
       "dong_name": "삼성1동",
-      "score": 0.8844,
+      "score": 0.6566,
       "confidence": 0.58,
-      "raw_prediction": 144.634653
-    },
-    {
-      "dong_name": "역삼1동",
-      "score": 0.6397,
-      "confidence": 0.58,
-      "raw_prediction": 108.302116
-    },
-    {
-      "dong_name": "논현1동",
-      "score": 0.5035,
-      "confidence": 0.58,
-      "raw_prediction": 88.094111
+      "raw_prediction": 274.63352
     },
     {
       "dong_name": "논현2동",
-      "score": 0.4947,
+      "score": 0.6229,
       "confidence": 0.58,
-      "raw_prediction": 86.776931
+      "raw_prediction": 261.77891
+    },
+    {
+      "dong_name": "역삼1동",
+      "score": 0.579,
+      "confidence": 0.58,
+      "raw_prediction": 244.97708
+    },
+    {
+      "dong_name": "논현1동",
+      "score": 0.5295,
+      "confidence": 0.58,
+      "raw_prediction": 226.08488
     },
     {
       "dong_name": "삼성2동",
-      "score": 0.2433,
+      "score": 0.3125,
       "confidence": 0.58,
-      "raw_prediction": 49.460258
+      "raw_prediction": 143.16231
     },
     {
       "dong_name": "청담동",
-      "score": 0.0635,
+      "score": 0.061,
       "confidence": 0.58,
-      "raw_prediction": 22.772893
+      "raw_prediction": 47.052916
     },
     {
       "dong_name": "역삼2동",
-      "score": 0.0102,
+      "score": 0.0117,
       "confidence": 0.58,
-      "raw_prediction": 14.866355
+      "raw_prediction": 28.209619
     },
     {
       "dong_name": "신사동",
       "score": 0.0,
       "confidence": 0.58,
-      "raw_prediction": 13.351589
+      "raw_prediction": 23.7436
     }
   ]
 }
