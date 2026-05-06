@@ -5,6 +5,8 @@ import forecastJson from "../../../public/forecast/latest.json";
 import liveForecastComparisonJson from "../../../public/live-forecast-comparison.json";
 import modelObservabilityJson from "../../../public/model-observability.json";
 import modelSummaryJson from "../../../public/model-summary.json";
+import poiForecastComparisonJson from "../../../public/poi-forecast-comparison.json";
+import poiFeaturesJson from "../../../public/poi-features.json";
 import publicPressureBaselineJson from "../../../public/public-pressure-baseline-comparison.json";
 import taxiPressureComparisonJson from "../../../public/taxi-pressure-comparison.json";
 import taxiPressureJson from "../../../public/taxi-pressure/latest.json";
@@ -33,7 +35,7 @@ import RefreshForecastControl from "./RefreshForecastControl";
 import RelativeTime from "./RelativeTime";
 
 export const metadata: Metadata = {
-  title: "데이터와 검증 | A-Eye",
+  title: "교통 데이터 운영 | 역삼권",
 };
 
 type CitydataPlace = {
@@ -177,6 +179,78 @@ type FeatureStatus = {
     wind_speed_ms?: number | null;
   };
   features: FeatureRow[];
+};
+
+type PoiFeatureRow = {
+  source_status: string;
+  poi_code: string;
+  poi_name: string;
+  area_name: string;
+  coverage_dong: string | null;
+  category: string | null;
+  current_population_mid: number | null;
+  current_congestion_level: string | null;
+  current_congestion_score: number | null;
+  current_traffic_index: string | null;
+  current_traffic_speed_kmh: number | null;
+  demand_proxy_score: number | null;
+  poi_pressure_score: number | null;
+  population_forecast_1h: {
+    forecast_time: string | null;
+    congestion_level: string | null;
+    population_mid: number | null;
+  } | null;
+  forecast_population_delta: number | null;
+  forecast_population_delta_pct: number | null;
+  note?: string | null;
+};
+
+type PoiFeaturesStatus = {
+  generated_at: string | null;
+  citydata_collection_count: number;
+  live_poi_count: number;
+  supplemental_poi_count: number;
+  row_count: number;
+  direct_citydata_rows: PoiFeatureRow[];
+  supplemental_watchlist: PoiFeatureRow[];
+  top_live_poi: PoiFeatureRow | null;
+  note: string;
+};
+
+type CompletedPoiForecastComparison = {
+  kind: "completed";
+  target_datetime: string | null;
+  source_observed_at: string | null;
+  overall: {
+    forecast_row_count: number;
+    row_count: number;
+    row_coverage_pct: number | null;
+    population_mae: number | null;
+    population_mape_pct: number | null;
+    congestion_score_mae: number | null;
+    congestion_level_accuracy_pct: number | null;
+    population_rank_spearman: number | null;
+    top_predicted_population_poi: string | null;
+    top_observed_population_poi: string | null;
+    same_top_poi: boolean | null;
+  };
+};
+
+type WaitingPoiForecastComparison = {
+  kind: "waiting";
+  target_datetime: string | null;
+  source_observed_at: string | null;
+  forecast_row_count: number;
+  matched_row_count: number;
+  status: string;
+};
+
+type PoiForecastComparison = {
+  generated_at: string | null;
+  comparison_type: string;
+  completed_count: number;
+  waiting_count: number;
+  latest: CompletedPoiForecastComparison | WaitingPoiForecastComparison | null;
 };
 
 type ModelRow = {
@@ -513,6 +587,8 @@ const dataCatalog = dataCatalogJson as DataCatalog;
 const dataSummary = dataSummaryJson as DataSummary;
 const forecast = forecastJson as ForecastStatus;
 const featureSnapshot = featureSnapshotJson as FeatureStatus;
+const poiForecastComparison = poiForecastComparisonJson as PoiForecastComparison;
+const poiFeatures = poiFeaturesJson as PoiFeaturesStatus;
 const liveForecastComparison = liveForecastComparisonJson as LiveForecastComparison;
 const modelSummary = modelSummaryJson as ModelSummary;
 const observability = modelObservabilityJson as ModelObservability;
@@ -832,6 +908,10 @@ const topTrafficForecast = trafficForecastRows[0] ?? null;
 const topFeatures = [...featureSnapshot.features]
   .sort((left, right) => right.demand_proxy_score - left.demand_proxy_score)
   .slice(0, 4);
+const topPoiRows = [...(poiFeatures.direct_citydata_rows ?? [])]
+  .sort((left, right) => (right.poi_pressure_score ?? 0) - (left.poi_pressure_score ?? 0))
+  .slice(0, 8);
+const latestPoiForecastComparison = poiForecastComparison.latest;
 const featureImportance = observability.feature_importance.top_features.slice(0, 8);
 const validation2026 = observability.observed_validation_2026 ?? null;
 const latestLiveComparison = liveForecastComparison.latest;
@@ -849,53 +929,73 @@ const pressureFormulaRows = Object.entries(taxiPressure.formula ?? {});
 
 export default function DataStatusPage() {
   return (
-    <main className="h-screen overflow-y-auto bg-transparent text-slate-100 selection:bg-cyan-400/30">
-      <nav className="sticky top-0 z-40 border-b border-white/10 bg-slate-900/60 backdrop-blur-xl">
+    <main className="h-screen overflow-y-auto bg-[#f4f6f8] text-slate-900 selection:bg-sky-200/70">
+      <nav className="sticky top-0 z-40 border-b border-slate-200 bg-white/95 shadow-sm backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3 px-4 py-3 sm:px-5">
           <Link
             href="/"
-            className="whitespace-nowrap rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/60 hover:bg-white/5 sm:px-4 sm:text-sm"
+            className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:px-4 sm:text-sm"
           >
             ← 맵으로
           </Link>
-          <div className="min-w-0 truncate text-xs font-black tracking-[0.18em] text-cyan-200 sm:text-sm sm:tracking-[0.24em]">
-            <span className="hidden sm:inline">A-EYE DATA STATUS</span>
-            <span className="sm:hidden">DATA</span>
+          <div className="min-w-0 truncate text-sm font-black text-slate-950 sm:text-base">
+            <span className="hidden sm:inline">교통 데이터 운영</span>
+            <span className="sm:hidden">데이터</span>
           </div>
           <Link
             href="/presentation"
-            className="whitespace-nowrap rounded-full border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition hover:border-cyan-300/60 hover:bg-white/5 sm:px-4 sm:text-sm"
+            className="whitespace-nowrap rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 sm:px-4 sm:text-sm"
           >
             발표 자료
           </Link>
         </div>
       </nav>
 
-      <div className="mx-auto max-w-7xl px-5 py-8 lg:py-10">
-        <header className="grid gap-8 lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
+      <div className="mx-auto max-w-7xl px-4 py-5 sm:px-5 lg:py-6">
+        <section className="grid gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 text-xs shadow-sm md:grid-cols-4">
           <div>
-            <p className="text-sm font-bold text-cyan-300">데이터 카탈로그</p>
-            <h1 className="mt-3 max-w-4xl break-keep text-4xl font-black tracking-tight text-slate-900 md:text-6xl">
-              공개 데이터와 학습 테이블
+            <p className="font-bold text-slate-500">수집 스냅샷</p>
+            <p className="mt-1 font-black text-slate-950">{formatKst(dataSummary.citydata.collected_at)}</p>
+          </div>
+          <div>
+            <p className="font-bold text-slate-500">예측 대상</p>
+            <p className="mt-1 font-black text-slate-950">{formatKst(forecast.target_datetime)}</p>
+          </div>
+          <div>
+            <p className="font-bold text-slate-500">POI / 행정동</p>
+            <p className="mt-1 font-black text-slate-950">
+              {poiFeatures.live_poi_count}개 / {modelSummary.target_area.dong_count}개
+            </p>
+          </div>
+          <div>
+            <p className="font-bold text-slate-500">검증 누적</p>
+            <p className="mt-1 font-black text-slate-950">
+              도로 {trafficForecastComparison.completed_count}건 · POI {poiForecastComparison.completed_count}건
+            </p>
+          </div>
+        </section>
+
+        <header className="mt-4 grid gap-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm lg:grid-cols-[1.35fr_0.65fr] lg:items-end">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">Data Inventory</p>
+            <h1 className="mt-2 max-w-4xl break-keep text-2xl font-black tracking-tight text-slate-950 md:text-4xl">
+              공개 데이터 운영 현황
             </h1>
-            <p className="mt-5 max-w-3xl break-keep text-base leading-7 text-slate-600 md:text-lg">
-              어떤 데이터를 모았고, 그 데이터가 어떻게 모델 입력으로 바뀌는지 먼저 보여줍니다.
-              3년치 대중교통, TOPIS, 생활인구, 날씨, OSM 공간 특성을
-              9개 동·1시간 단위 학습 테이블로 묶어 1시간 뒤 이동수요 대리 지표와 도로 상태를 추정합니다.
+            <p className="mt-3 max-w-3xl break-keep text-sm leading-6 text-slate-600">
+              수집 중인 공개 API, 과거 학습 테이블, 예측 산출물, 사후 검증 결과를 한 화면에서 확인합니다.
+              목표는 실제 호출량 단정이 아니라 1시간 뒤 이동수요 대리 지표와 도로 상태를 공개 데이터로 추정하는 것입니다.
             </p>
           </div>
 
-          <section className="rounded-2xl border border-cyan-500/20 bg-cyan-50 p-5">
-            <div className="flex items-center gap-2 text-cyan-900">
+          <section className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <div className="flex items-center gap-2 text-slate-900">
               <ShieldCheck className="h-5 w-5" />
-              <p className="font-black">발표에서 지킬 표현</p>
+              <p className="font-black">데이터 경계</p>
             </div>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              이 프로젝트는 KakaoT 호출 로그를 학습하지 않습니다. 발표할 때는
-              “대중교통 승차량 기반 이동수요 대리 지표(proxy)”와
-              “공개 데이터 기반 배차 판단 시제품”이라고 설명하면 됩니다.
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              KakaoT 호출 로그는 학습하지 않습니다. 이 화면의 “수요”는 대중교통 승차량 기반 이동수요 대리 지표(proxy)입니다.
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
               <div>
                 <p className="text-slate-500">학습 기간</p>
                 <p className="font-bold text-slate-800">
@@ -911,7 +1011,7 @@ export default function DataStatusPage() {
                 <p className="font-bold text-slate-800">{modelSummary.target_area.dong_count}개 행정동</p>
               </div>
               <div>
-                <p className="text-slate-500">원천 구분</p>
+                <p className="text-slate-500">데이터 구분</p>
                 <p className="font-bold text-slate-800">
                   실시간 {liveSourceCount} / 과거 {offlineSourceCount}
                 </p>
@@ -991,8 +1091,8 @@ export default function DataStatusPage() {
         <section className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <p className="text-sm font-bold text-slate-500">원천 데이터 목록</p>
-              <h2 className="mt-2 text-2xl font-black text-slate-900">수집한 원천 데이터</h2>
+              <p className="text-sm font-bold text-slate-500">데이터 소스</p>
+              <h2 className="mt-2 text-2xl font-black text-slate-900">수집·학습에 쓰는 공개 데이터</h2>
             </div>
             <p className="text-sm font-bold text-slate-500">
               총 {dataCatalog.sources.length}개 · 실시간 {liveSourceCount}개 · 과거 학습용 {offlineSourceCount}개
@@ -1635,6 +1735,139 @@ export default function DataStatusPage() {
           </Panel>
         </section>
 
+        <section className="mt-8">
+          <Panel>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-bold text-indigo-600">POI별 실시간 성적표</p>
+                <h2 className="mt-2 text-2xl font-black text-slate-900">
+                  행정동 평균 뒤에 숨은 주요 지점 신호
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600">
+                  서울 citydata로 직접 수집 가능한 강남권 POI는 현재 인구, 혼잡 단계, 도로 속도와
+                  1시간 뒤 인구 예보를 함께 남깁니다. citydata 코드가 확인되지 않은 역·도로 거점은
+                  OSM 보조 POI로 분리해 지도 맥락에만 씁니다.
+                </p>
+              </div>
+              <div className="text-right text-sm text-slate-500">
+                <p>citydata POI {poiFeatures.live_poi_count}개</p>
+                <p className="mt-1">보조 POI {poiFeatures.supplemental_poi_count}개</p>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-4">
+              <MetricTile
+                label="POI 예보 검증"
+                value={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? `${latestPoiForecastComparison.overall.row_count}개 완료`
+                    : `${poiForecastComparison.waiting_count}건 대기`
+                }
+                insight={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? `${formatKst(latestPoiForecastComparison.target_datetime)} 관측 비교`
+                    : "다음 citydata 스냅샷 대기"
+                }
+              />
+              <MetricTile
+                label="인구 예보 오차"
+                value={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? `${formatNumber(latestPoiForecastComparison.overall.population_mae)}명`
+                    : "-"
+                }
+                insight={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? `MAPE ${formatMetric(latestPoiForecastComparison.overall.population_mape_pct, 1)}%`
+                    : "완료 비교 없음"
+                }
+              />
+              <MetricTile
+                label="혼잡 단계 적중"
+                value={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? `${formatMetric(latestPoiForecastComparison.overall.congestion_level_accuracy_pct, 1)}%`
+                    : "-"
+                }
+                insight={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? `혼잡 MAE ${formatMetric(latestPoiForecastComparison.overall.congestion_score_mae, 3)}`
+                    : "citydata 단계 기준"
+                }
+              />
+              <MetricTile
+                label="상위 POI"
+                value={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? latestPoiForecastComparison.overall.top_observed_population_poi ?? "-"
+                    : poiFeatures.top_live_poi?.poi_name ?? "-"
+                }
+                insight={
+                  latestPoiForecastComparison?.kind === "completed"
+                    ? `순위상관 ${formatMetric(latestPoiForecastComparison.overall.population_rank_spearman, 3)}`
+                    : "현재 pressure 기준"
+                }
+              />
+            </div>
+
+            <div className="mt-5 overflow-x-auto">
+              <table className="w-full min-w-[860px] text-left text-sm">
+                <thead className="border-y border-slate-200 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-4 py-3">POI</th>
+                    <th className="px-4 py-3">담당 동</th>
+                    <th className="px-4 py-3">현재 인구</th>
+                    <th className="px-4 py-3">현재 혼잡</th>
+                    <th className="px-4 py-3">도로 속도</th>
+                    <th className="px-4 py-3">1시간 뒤 인구</th>
+                    <th className="px-4 py-3">POI pressure</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {topPoiRows.map((poi) => (
+                    <tr key={poi.poi_code} className="text-slate-700">
+                      <td className="px-4 py-3">
+                        <p className="font-bold text-slate-950">{poi.poi_name}</p>
+                        <p className="mt-0.5 text-xs text-slate-400">{poi.poi_code}</p>
+                      </td>
+                      <td className="px-4 py-3">{poi.coverage_dong ?? "-"}</td>
+                      <td className="px-4 py-3">
+                        {poi.current_population_mid == null
+                          ? "-"
+                          : `${formatNumber(poi.current_population_mid)}명`}
+                      </td>
+                      <td className="px-4 py-3">{poi.current_congestion_level ?? "-"}</td>
+                      <td className="px-4 py-3">
+                        {poi.current_traffic_speed_kmh == null
+                          ? "-"
+                          : `${poi.current_traffic_speed_kmh}km/h`}
+                      </td>
+                      <td className="px-4 py-3">
+                        {poi.population_forecast_1h?.population_mid == null
+                          ? "-"
+                          : `${formatNumber(poi.population_forecast_1h.population_mid)}명`}
+                        {poi.forecast_population_delta != null ? (
+                          <span className="ml-2 text-xs text-slate-400">
+                            {poi.forecast_population_delta >= 0 ? "+" : ""}
+                            {formatNumber(poi.forecast_population_delta)}
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="px-4 py-3 font-bold text-indigo-700">
+                        {formatMetric(poi.poi_pressure_score, 3)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-slate-500">
+              POI pressure는 citydata 현재 인구·혼잡·도로 속도와 citydata의 단기 인구 예보를 합친
+              공개 데이터 기반 지점 신호입니다. 택시 호출량 정답 라벨이 아닙니다.
+            </p>
+          </Panel>
+        </section>
+
         <section className="mt-8 grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <Panel>
             <div className="flex items-center justify-between gap-4">
@@ -1954,7 +2187,7 @@ export default function DataStatusPage() {
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <section className="glass-panel rounded-2xl p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] bg-white/80">
+    <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
       {children}
     </section>
   );
@@ -1962,7 +2195,7 @@ function Panel({ children }: { children: React.ReactNode }) {
 
 function SourceCard({ source }: { source: DataCatalogSource }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">
@@ -1992,9 +2225,9 @@ function SourceCard({ source }: { source: DataCatalogSource }) {
         href={source.url}
         target="_blank"
         rel="noreferrer"
-        className="mt-4 inline-flex text-xs font-black text-cyan-700 underline decoration-cyan-200 underline-offset-4 hover:decoration-cyan-500"
+        className="mt-4 inline-flex rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs font-black text-slate-700 transition hover:border-slate-300 hover:bg-white"
       >
-        원천 보기
+        공식 출처
       </a>
     </article>
   );
@@ -2022,13 +2255,13 @@ function ValidationCard({
           <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{eyebrow}</p>
           <h3 className="mt-2 text-lg font-black text-slate-950">{title}</h3>
         </div>
-        <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-bold ${statusClass}`}>
+        <span className={`shrink-0 rounded-md border px-2.5 py-1 text-xs font-bold ${statusClass}`}>
           {status}
         </span>
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3">
         {metrics.map((metric) => (
-          <div key={metric.label} className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+          <div key={metric.label} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
             <p className="text-[11px] font-bold text-slate-500">{metric.label}</p>
             <p className="mt-1 truncate text-sm font-black text-slate-950">{metric.value}</p>
           </div>
@@ -2053,9 +2286,9 @@ function FlowCard({
   footer: string;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)]">
+    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-center justify-between gap-4">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-100">
+        <div className="flex h-9 w-9 items-center justify-center rounded-md bg-slate-50 text-slate-700 border border-slate-200">
           {icon}
         </div>
         <ArrowRight className="h-4 w-4 text-slate-400" />
@@ -2095,10 +2328,10 @@ function PipelineStep({
 
 function MetricTile({ label, value, insight }: { label: string; value: string; insight?: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
       <p className="text-xs font-bold text-slate-500">{label}</p>
       <p className="mt-1 break-words text-base font-black leading-6 text-slate-950">{value}</p>
-      {insight && <p className="mt-1 text-[10px] text-cyan-700 font-medium">{insight}</p>}
+      {insight && <p className="mt-1 text-[10px] text-slate-500 font-medium">{insight}</p>}
     </div>
   );
 }

@@ -261,6 +261,7 @@ await runStep("taxi-pressure", "node", ["scripts/build-taxi-pressure-forecast.mj
 await runStep("traffic-comparison", "node", ["scripts/build-traffic-forecast-comparison.mjs"]);
 await runStep("taxi-pressure-comparison", "node", ["scripts/build-taxi-pressure-comparison.mjs"]);
 await runStep("public-pressure-baseline", "node", ["scripts/build-public-pressure-baseline.mjs"]);
+await runStep("poi-forecast-comparison", "node", ["scripts/build-poi-forecast-comparison.mjs"]);
 await runStep("dispatch", "node", ["module4_dispatch/run_dispatch_policy.mjs"]);
 await runStep("data-summary", "node", ["scripts/build-data-summary.mjs"]);
 

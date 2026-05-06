@@ -49,14 +49,19 @@ function formatKst(value) {
   }).format(date);
 }
 
+function oneLine(value) {
+  if (value == null || value === "") return "-";
+  return String(value).replace(/[\r\n]+/g, " ").trim();
+}
+
 function topRows(rows, scoreField, limit = 5) {
   return [...(rows ?? [])]
     .slice(0, limit)
     .map((row, index) => ({
       rank: index + 1,
-      dong_name: row.dong_name,
+      dong_name: oneLine(row.dong_name),
       score: row[scoreField] ?? null,
-      action_level: row.action_level ?? null,
+      action_level: oneLine(row.action_level),
     }));
 }
 
@@ -78,7 +83,9 @@ const featureSnapshot = await readJson("public/feature-snapshot.json", {});
 const forecast = await readJson("public/forecast/latest.json", {});
 const trafficForecast = await readJson("public/traffic-forecast/latest.json", {});
 const taxiPressure = await readJson("public/taxi-pressure/latest.json", {});
+const dispatchPlan = await readJson("public/dispatch-plan.json", {});
 const taxiPressureComparison = await readJson("public/taxi-pressure-comparison.json", {});
+const poiForecastComparison = await readJson("public/poi-forecast-comparison.json", {});
 const liveLogs = await readJsonl("data/processed/live_validation/live_forecast_log.jsonl");
 const taxiPressureLogs = await readJsonl("data/processed/live_validation/taxi_pressure_log.jsonl");
 
@@ -123,8 +130,13 @@ const status = {
     taxi_pressure_completed_count: taxiPressureComparison.completed_count ?? 0,
     taxi_pressure_waiting_count: taxiPressureComparison.waiting_count ?? 0,
     latest_pressure_comparison: latestComparison,
+    poi_forecast_comparison_type: poiForecastComparison.comparison_type ?? null,
+    poi_forecast_completed_count: poiForecastComparison.completed_count ?? 0,
+    poi_forecast_waiting_count: poiForecastComparison.waiting_count ?? 0,
+    latest_poi_forecast_comparison: poiForecastComparison.latest ?? null,
     live_log_count: liveLogs.length,
   },
+  dispatch_effect: dispatchPlan.policy_effect_summary ?? null,
   note:
     "This status tracks public-data proxy forecasts, not direct KakaoT taxi-call predictions.",
 };
@@ -132,6 +144,20 @@ const status = {
 const publicPath = path.join(projectRoot, "public", "overnight-status.json");
 await mkdir(path.dirname(publicPath), { recursive: true });
 await writeFile(publicPath, `${JSON.stringify(status, null, 2)}\n`, "utf8");
+
+const latestPressureComparison = status.validation.latest_pressure_comparison;
+const latestPressureOverall = latestPressureComparison?.overall ?? {};
+const latestPredictedPressureDong =
+  oneLine(
+    latestPressureOverall.top_predicted_priority_dong ??
+      latestPressureComparison?.top_predicted_priority_dong,
+  );
+const latestObservedCongestionDong =
+  oneLine(latestPressureOverall.top_actual_congestion_dong);
+const latestRoadSignalSpearman =
+  latestPressureOverall.priority_vs_road_congestion_spearman ?? "-";
+const latestPoiComparison = status.validation.latest_poi_forecast_comparison;
+const latestPoiOverall = latestPoiComparison?.overall ?? {};
 
 const md = `# Overnight Model QA Status
 
@@ -177,19 +203,28 @@ ${markdownTable(status.top_predictions.traffic_congestion)}
 - Completed comparisons: ${status.validation.taxi_pressure_completed_count}
 - Waiting comparisons: ${status.validation.taxi_pressure_waiting_count}
 - Live demand log count: ${status.validation.live_log_count}
-- Latest comparison kind: ${status.validation.latest_pressure_comparison?.kind ?? "-"}
-- Latest comparison target: ${formatKst(status.validation.latest_pressure_comparison?.target_datetime)}
-- Latest comparison top predicted: ${
-  status.validation.latest_pressure_comparison?.overall?.top_predicted_priority_dong
-  ?? status.validation.latest_pressure_comparison?.top_predicted_priority_dong
-  ?? "-"
-}
-- Latest comparison top observed congestion: ${
-  status.validation.latest_pressure_comparison?.overall?.top_actual_congestion_dong ?? "-"
-}
-- Latest road-signal Spearman (policy check): ${
-  status.validation.latest_pressure_comparison?.overall?.priority_vs_road_congestion_spearman ?? "-"
-}
+- Latest comparison kind: ${latestPressureComparison?.kind ?? "-"}
+- Latest comparison target: ${formatKst(latestPressureComparison?.target_datetime)}
+- Latest comparison top predicted: ${latestPredictedPressureDong}
+- Latest comparison top observed congestion: ${latestObservedCongestionDong}
+- Latest road-signal Spearman (policy check): ${latestRoadSignalSpearman}
+- POI forecast completed/waiting: ${status.validation.poi_forecast_completed_count} / ${status.validation.poi_forecast_waiting_count}
+- Latest POI forecast target: ${formatKst(latestPoiComparison?.target_datetime)}
+- Latest POI matched rows: ${latestPoiOverall.row_count ?? "-"}
+- Latest POI population MAE: ${latestPoiOverall.population_mae ?? "-"}
+- Latest POI congestion-level hit rate: ${latestPoiOverall.congestion_level_accuracy_pct ?? "-"}%
+- Latest POI top predicted/observed: ${oneLine(latestPoiOverall.top_predicted_population_poi)} / ${oneLine(latestPoiOverall.top_observed_population_poi)}
+
+## Dispatch Effect Proxy
+
+- Method: ${status.dispatch_effect?.method ?? "-"}
+- Intervention areas: ${status.dispatch_effect?.intervention_area_count ?? "-"}
+- Monitoring units: ${status.dispatch_effect?.total_monitoring_units ?? "-"}
+- Max incentive multiplier: ${status.dispatch_effect?.max_incentive_multiplier ?? "-"}
+- Positive imbalance before: ${status.dispatch_effect?.total_positive_imbalance_before ?? "-"}
+- Estimated positive imbalance after: ${status.dispatch_effect?.estimated_total_positive_imbalance_after ?? "-"}
+- Estimated relief score: ${status.dispatch_effect?.estimated_total_relief_score ?? "-"}
+- Highest relief dong: ${status.dispatch_effect?.highest_relief_dong ?? "-"}
 `;
 
 const docsPath = path.join(projectRoot, "docs", "overnight-model-qa-status.md");

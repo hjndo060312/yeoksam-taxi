@@ -11,15 +11,28 @@ const PROCESSED_OUTPUT = "data/processed/live_validation/public_pressure_baselin
 const PUBLIC_OUTPUT = "public/public-pressure-baseline-comparison.json";
 const MATCH_WINDOW_MINUTES = 90;
 
-const AREA_TO_DONG = {
-  POI042: "역삼1동",
-  POI001: "논현1동",
-  POI043: "삼성1동",
-  POI044: "대치4동",
-  POI045: "청담동",
-  POI046: "신사동",
-  POI047: "압구정동",
-};
+async function loadAreaToDong() {
+  try {
+    const config = JSON.parse(
+      await readFile(path.join(projectRoot, "data", "config", "gangnam-pois.json"), "utf8"),
+    );
+    const entries = Array.isArray(config?.citydata_collection)
+      ? config.citydata_collection
+      : [];
+    return new Map(
+      entries
+        .filter((poi) => poi?.code && poi?.coverage_dong)
+        .map((poi) => [poi.code, poi.coverage_dong]),
+    );
+  } catch {
+    return new Map([
+      ["POI042", "역삼1동"],
+      ["POI001", "논현1동"],
+    ]);
+  }
+}
+
+const AREA_TO_DONG = await loadAreaToDong();
 
 async function readJsonIfExists(relativePath, fallback = null) {
   try {
@@ -183,7 +196,15 @@ async function loadCitydataSnapshots() {
   for (const file of files) {
     const snapshot = await readJsonIfExists(file.relative_path);
     const observedAt = citydataObservedAt(snapshot);
-    if (!observedAt || !Array.isArray(snapshot?.results)) continue;
+    const hasUsableResult = (snapshot?.results ?? []).some((result) => result?.ok);
+    if (
+      !observedAt
+      || snapshot?.meta?.ok === false
+      || !Array.isArray(snapshot?.results)
+      || !hasUsableResult
+    ) {
+      continue;
+    }
     snapshots.push({ ...file, observed_at: observedAt, snapshot });
   }
 
@@ -205,7 +226,7 @@ function summarizeCitydataPopulation(citydataSnapshot) {
     if (!result?.ok) continue;
     const data = unwrapCitydata(result.data);
     const code = result.code ?? data?.AREA_CD ?? null;
-    const dongName = AREA_TO_DONG[code];
+    const dongName = AREA_TO_DONG.get(code);
     if (!dongName || !data) continue;
 
     const population = data.LIVE_PPLTN_STTS?.[0] ?? {};
@@ -228,7 +249,18 @@ function summarizeCitydataPopulation(citydataSnapshot) {
     });
   }
 
-  return new Map(rows.map((row) => [row.dong_name, row]));
+  const bestByDong = new Map();
+  for (const row of rows) {
+    const previous = bestByDong.get(row.dong_name);
+    if (
+      !previous
+      || row.observed_population_score > previous.observed_population_score
+    ) {
+      bestByDong.set(row.dong_name, row);
+    }
+  }
+
+  return bestByDong;
 }
 
 function comparePressureToPublicBaseline(forecast, trafficSnapshot, citydataSnapshot) {

@@ -161,6 +161,8 @@ const rawWeatherAttempt = latestWeatherAttemptPath
 const forecast = await readJsonIfExists("public/forecast/latest.json");
 const dispatchPlan = await readJsonIfExists("public/dispatch-plan.json");
 const featureSnapshot = await readJsonIfExists("public/feature-snapshot.json");
+const poiFeatures = await readJsonIfExists("public/poi-features.json");
+const poiForecastComparison = await readJsonIfExists("public/poi-forecast-comparison.json");
 const taxiPressure = await readJsonIfExists("public/taxi-pressure/latest.json");
 const taxiPressureComparison = await readJsonIfExists("public/taxi-pressure-comparison.json");
 
@@ -206,6 +208,7 @@ const summary = {
         generated_at: dispatchPlan.generated_at,
         top_region: dispatchPlan.decisions?.[0] ?? null,
         decision_count: dispatchPlan.decisions?.length ?? 0,
+        policy_effect_summary: dispatchPlan.policy_effect_summary ?? null,
       }
     : null,
   taxi_pressure: taxiPressure
@@ -232,6 +235,27 @@ const summary = {
         row_count: featureSnapshot.row_count,
         top_area: featureSnapshot.features?.[0] ?? null,
         source: featureSnapshot.source,
+      }
+    : null,
+  poi_features: poiFeatures
+    ? {
+        generated_at: poiFeatures.generated_at,
+        row_count: poiFeatures.row_count,
+        live_poi_count: poiFeatures.live_poi_count,
+        supplemental_poi_count: poiFeatures.supplemental_poi_count,
+        citydata_collection_count: poiFeatures.citydata_collection_count,
+        top_live_poi: poiFeatures.top_live_poi ?? null,
+        source: poiFeatures.source,
+        note: poiFeatures.note,
+      }
+    : null,
+  poi_forecast_validation: poiForecastComparison
+    ? {
+        generated_at: poiForecastComparison.generated_at,
+        comparison_type: poiForecastComparison.comparison_type,
+        completed_count: poiForecastComparison.completed_count,
+        waiting_count: poiForecastComparison.waiting_count,
+        latest: poiForecastComparison.latest ?? null,
       }
     : null,
 };

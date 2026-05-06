@@ -136,6 +136,7 @@ import {
   offsetToRight,
   opposingSignalDirection,
   precipitationDrawRatioFor,
+  projectPoint,
   renderCapLabel,
   renderPixelRatioFor,
   resetSignalApproachDemand,
@@ -173,6 +174,8 @@ import type {
 type MapSimulatorSceneRuntimeProps = {
   containerRef: RefObject<HTMLDivElement | null>;
   data: SimulationData | null;
+  poiFeatureRows: MapPoiFeatureRow[];
+  onPoiSelect?: (poiCode: string) => void;
   simulationSource: SimulationSource;
   appliedTaxiCountRef: MutableRefObject<number>;
   appliedTrafficCountRef: MutableRefObject<number>;
@@ -213,9 +216,101 @@ type MapSimulatorSceneRuntimeProps = {
   }) => void;
 };
 
+type MapPoiFeatureRow = {
+  source_status: string;
+  poi_code: string;
+  poi_name: string;
+  coverage_dong: string | null;
+  category: string | null;
+  lon: number | null;
+  lat: number | null;
+  current_population_mid: number | null;
+  current_congestion_level: string | null;
+  current_traffic_speed_kmh: number | null;
+  poi_pressure_score: number | null;
+  population_forecast_1h: {
+    population_mid: number | null;
+    congestion_level: string | null;
+  } | null;
+  forecast_population_delta: number | null;
+};
+
+function poiMarkerColor(score: number | null | undefined) {
+  const normalized = score ?? 0;
+  if (normalized >= 0.72) return "#fb7185";
+  if (normalized >= 0.56) return "#fbbf24";
+  if (normalized >= 0.36) return "#38bdf8";
+  return "#94a3b8";
+}
+
+function formatPoiPopulation(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) {
+    return "-";
+  }
+  return value >= 10_000
+    ? `${Math.round(value / 1_000).toLocaleString("ko-KR")}k`
+    : value.toLocaleString("ko-KR");
+}
+
+function poiMarkerElement(poi: MapPoiFeatureRow) {
+  const element = document.createElement("div");
+  const score = poi.poi_pressure_score ?? 0;
+  const accent = poiMarkerColor(score);
+  const forecastDelta = poi.forecast_population_delta ?? null;
+  const deltaLabel =
+    forecastDelta == null
+      ? "1h -"
+      : `${forecastDelta >= 0 ? "+" : ""}${formatPoiPopulation(forecastDelta)}`;
+
+  element.dataset.labelKind = "poi";
+  element.style.display = "grid";
+  element.style.gap = "2px";
+  element.style.minWidth = "104px";
+  element.style.padding = "6px 8px";
+  element.style.borderRadius = "10px";
+  element.style.border = `1px solid ${accent}66`;
+  element.style.background = "rgba(5, 12, 23, 0.88)";
+  element.style.boxShadow = `0 8px 20px rgba(0,0,0,0.28), 0 0 20px ${accent}22`;
+  element.style.color = "#e5f7ff";
+  element.style.fontFamily = "Pretendard, SUIT Variable, sans-serif";
+  element.style.fontSize = "10px";
+  element.style.fontWeight = "600";
+  element.style.letterSpacing = "0";
+  element.style.lineHeight = "1.25";
+  element.style.pointerEvents = "none";
+  element.style.whiteSpace = "nowrap";
+
+  const title = document.createElement("div");
+  title.style.display = "flex";
+  title.style.alignItems = "center";
+  title.style.justifyContent = "space-between";
+  title.style.gap = "8px";
+  const name = document.createElement("span");
+  name.textContent = poi.poi_name;
+  const value = document.createElement("span");
+  value.textContent = String(Math.round(score * 100));
+  value.style.color = accent;
+  value.style.fontWeight = "800";
+  title.appendChild(name);
+  title.appendChild(value);
+  element.appendChild(title);
+
+  const detail = document.createElement("div");
+  detail.style.color = "#94a3b8";
+  detail.style.fontSize = "9px";
+  detail.textContent = `${formatPoiPopulation(poi.current_population_mid)}명 · ${
+    poi.current_congestion_level ?? "-"
+  } · ${deltaLabel}`;
+  element.appendChild(detail);
+
+  return element;
+}
+
 export default function MapSimulatorSceneRuntime({
   containerRef,
   data,
+  poiFeatureRows,
+  onPoiSelect,
   simulationSource,
   appliedTaxiCountRef,
   appliedTrafficCountRef,
@@ -382,6 +477,7 @@ export default function MapSimulatorSceneRuntime({
     const pointerNdc = new THREE.Vector2(2, 2);
     const taxiPointerHits: THREE.Intersection[] = [];
     const transitPointerHits: THREE.Intersection[] = [];
+    const poiPointerHits: THREE.Intersection[] = [];
     const boundaryPointerHits: THREE.Intersection[] = [];
     const cameraOffset = new THREE.Vector3();
     const driveLookDirection = new THREE.Vector3();
@@ -1907,6 +2003,8 @@ export default function MapSimulatorSceneRuntime({
     const optionalLabelObjects: CSS2DObject[] = [];
     const districtLabelElements = new Map<string, HTMLDivElement>();
     const transitHoverTargets: THREE.Object3D[] = [];
+    const poiClickTargets: THREE.Object3D[] = [];
+    const poiByCode = new Map<string, MapPoiFeatureRow>();
     const registerSceneLabel = (
       label: CSS2DObject,
       kind: SceneLabelKind,
@@ -2111,6 +2209,23 @@ export default function MapSimulatorSceneRuntime({
       return transitName ?? null;
     };
 
+    const resolvePoiCodeFromPointerRay = () => {
+      if (!poiClickTargets.length) {
+        return null;
+      }
+
+      poiPointerHits.length = 0;
+      raycaster.intersectObjects(poiClickTargets, false, poiPointerHits);
+      const hit = poiPointerHits[0];
+      const poiCode = hit?.object.userData?.poiCode as string | undefined;
+      return poiCode ?? null;
+    };
+
+    const findPoiCodeFromPointer = () => {
+      raycaster.setFromCamera(pointerNdc, camera);
+      return resolvePoiCodeFromPointerRay();
+    };
+
     const enterRideMode = (vehicle: Vehicle) => {
       if (cameraModeRef.current !== "ride") {
         rideExitModeRef.current =
@@ -2259,6 +2374,99 @@ export default function MapSimulatorSceneRuntime({
           transitGroup.add(label);
         }
       });
+
+    const poiMarkerGroup = new THREE.Group();
+    poiMarkerGroup.name = "citydata-poi-marker-layer";
+    const poiHitGeometry = new THREE.CylinderGeometry(1.65, 1.65, 2.8, 24);
+    const poiHitMaterial = new THREE.MeshBasicMaterial({
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    poiHitMaterial.colorWrite = false;
+    const poiRowsForMap = [...poiFeatureRows]
+      .filter(
+        (poi) =>
+          poi.source_status === "citydata_live" &&
+          Number.isFinite(poi.lon) &&
+          Number.isFinite(poi.lat),
+      )
+      .sort((left, right) => (right.poi_pressure_score ?? 0) - (left.poi_pressure_score ?? 0))
+      .slice(0, 10);
+
+    poiRowsForMap.forEach((poi, index) => {
+      poiByCode.set(poi.poi_code, poi);
+      const projected = projectPoint(
+        [poi.lon as number, poi.lat as number],
+        simulationData.center,
+      );
+      const score = poi.poi_pressure_score ?? 0;
+      const accent = new THREE.Color(poiMarkerColor(score));
+      const group = new THREE.Group();
+      group.name = `poi-marker-${poi.poi_code}`;
+      group.position.set(projected.x, 0.24, projected.z);
+
+      const hitTarget = new THREE.Mesh(poiHitGeometry, poiHitMaterial);
+      hitTarget.name = `poi-hit-${poi.poi_code}`;
+      hitTarget.position.y = 1.12;
+      hitTarget.userData.poiCode = poi.poi_code;
+      group.add(hitTarget);
+      poiClickTargets.push(hitTarget);
+
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.15, 1.35, 0.16, 28),
+        new THREE.MeshStandardMaterial({
+          color: 0x08111d,
+          emissive: accent,
+          emissiveIntensity: 0.14,
+          roughness: 0.72,
+          metalness: 0.08,
+          transparent: true,
+          opacity: 0.86,
+        }),
+      );
+      base.position.y = 0.05;
+      group.add(base);
+
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(1.02, 0.055, 10, 32),
+        new THREE.MeshStandardMaterial({
+          color: accent,
+          emissive: accent,
+          emissiveIntensity: 0.26,
+          roughness: 0.5,
+          transparent: true,
+          opacity: 0.82,
+        }),
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.2;
+      group.add(ring);
+
+      const pulse = new THREE.Mesh(
+        new THREE.SphereGeometry(0.24 + Math.min(score, 1) * 0.12, 18, 18),
+        new THREE.MeshStandardMaterial({
+          color: accent,
+          emissive: accent,
+          emissiveIntensity: 0.42,
+          roughness: 0.36,
+        }),
+      );
+      pulse.position.y = 0.56;
+      group.add(pulse);
+
+      const label = new CSS2DObject(poiMarkerElement(poi));
+      label.position.set(0, 2.1 + (index % 3) * 0.18, 0);
+      label.visible = true;
+      group.add(label);
+      labelObjects.push(label);
+
+      poiMarkerGroup.add(group);
+    });
+
+    if (poiMarkerGroup.children.length > 0) {
+      scene.add(poiMarkerGroup);
+    }
 
     optionalLabelObjectsRef.current = optionalLabelObjects;
 
@@ -3989,6 +4197,20 @@ export default function MapSimulatorSceneRuntime({
       updateHoverHint(stationName, "help", []);
     };
 
+    const setPoiHover = (poiCode: string | null) => {
+      if (!poiCode) {
+        clearHoverHint();
+        return;
+      }
+
+      const poi = poiByCode.get(poiCode);
+      updateHoverHint(
+        poi ? `${poi.poi_name} · POI 상세` : "POI 상세",
+        "pointer",
+        [],
+      );
+    };
+
     const updateBoundaryHover = () => {
       if (cameraRig.dragging || !pointerInside) {
         setBoundaryHover(null);
@@ -4000,6 +4222,12 @@ export default function MapSimulatorSceneRuntime({
       const hoveredTaxi = resolveTaxiFromPointerRay();
       if (hoveredTaxi) {
         setTaxiHover(hoveredTaxi);
+        return;
+      }
+
+      const hoveredPoiCode = resolvePoiCodeFromPointerRay();
+      if (hoveredPoiCode) {
+        setPoiHover(hoveredPoiCode);
         return;
       }
 
@@ -4166,6 +4394,12 @@ export default function MapSimulatorSceneRuntime({
       stopDragging();
       markHoverDirty();
       if (shouldTreatAsClick) {
+        const clickedPoiCode = findPoiCodeFromPointer();
+        if (clickedPoiCode) {
+          onPoiSelect?.(clickedPoiCode);
+          return;
+        }
+
         const clickedTaxi = findTaxiFromPointer();
         if (clickedTaxi) {
           enterRideMode(clickedTaxi);
@@ -4904,6 +5138,8 @@ export default function MapSimulatorSceneRuntime({
       if (transitGroupRef.current === transitGroup) {
         transitGroupRef.current = null;
       }
+      poiMarkerGroup.removeFromParent();
+      disposeObject3DResources(poiMarkerGroup);
       if (optionalLabelObjectsRef.current === optionalLabelObjects) {
         optionalLabelObjectsRef.current = [];
       }
@@ -4919,6 +5155,7 @@ export default function MapSimulatorSceneRuntime({
     data,
     fpsModeRef,
     followTaxiIdRef,
+    poiFeatureRows,
     simulationSource,
     showFpsRef,
     showLabelsRef,

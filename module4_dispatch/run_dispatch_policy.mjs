@@ -61,6 +61,61 @@ function actionFor(imbalance) {
   };
 }
 
+function effectEstimateFor(decision) {
+  const positiveImbalance = Math.max(0, decision.imbalance_score);
+  const unitRelief = decision.coverage_units * 0.08;
+  const incentiveRelief = Math.max(0, decision.incentive_multiplier - 1) * 0.35;
+  const estimatedRelief = Math.min(positiveImbalance, unitRelief + incentiveRelief);
+
+  return {
+    method: "proxy_counterfactual_v1",
+    before_positive_imbalance_score: round(positiveImbalance),
+    estimated_relief_score: round(estimatedRelief),
+    after_policy_imbalance_score: round(Math.max(0, positiveImbalance - estimatedRelief)),
+    note: "Proxy relief estimate only; not observed taxi-call or taxi-supply impact.",
+  };
+}
+
+function summarizeEffect(decisions) {
+  const interventionRows = decisions.filter((row) => row.coverage_units > 0);
+  const beforeTotal = decisions.reduce(
+    (sum, row) => sum + Math.max(0, row.imbalance_score),
+    0,
+  );
+  const afterTotal = decisions.reduce(
+    (sum, row) => sum + (row.policy_effect_estimate?.after_policy_imbalance_score ?? 0),
+    0,
+  );
+  const reliefTotal = decisions.reduce(
+    (sum, row) => sum + (row.policy_effect_estimate?.estimated_relief_score ?? 0),
+    0,
+  );
+  const highestRelief = [...decisions].sort(
+    (left, right) =>
+      (right.policy_effect_estimate?.estimated_relief_score ?? 0) -
+      (left.policy_effect_estimate?.estimated_relief_score ?? 0),
+  )[0] ?? null;
+
+  return {
+    method: "proxy_counterfactual_v1",
+    interpretation:
+      "Estimated pressure relief from monitoring units and incentive multipliers. This is a policy-planning proxy, not measured KakaoT dispatch impact.",
+    intervention_area_count: interventionRows.length,
+    total_monitoring_units: interventionRows.reduce(
+      (sum, row) => sum + row.coverage_units,
+      0,
+    ),
+    max_incentive_multiplier: round(
+      Math.max(...decisions.map((row) => row.incentive_multiplier), 1),
+      2,
+    ),
+    total_positive_imbalance_before: round(beforeTotal),
+    estimated_total_positive_imbalance_after: round(afterTotal),
+    estimated_total_relief_score: round(reliefTotal),
+    highest_relief_dong: highestRelief?.dong_name ?? null,
+  };
+}
+
 function supplyProxyFromTraffic(row) {
   if (!row) {
     return {
@@ -135,7 +190,11 @@ const decisions = (forecast.regions ?? [])
       incentive_multiplier: action.incentive_multiplier,
     };
   })
-  .sort((left, right) => right.imbalance_score - left.imbalance_score);
+  .sort((left, right) => right.imbalance_score - left.imbalance_score)
+  .map((decision) => ({
+    ...decision,
+    policy_effect_estimate: effectEstimateFor(decision),
+  }));
 
 const output = {
   source: "traffic_aware_demand_monitoring_priority_v2",
@@ -146,6 +205,7 @@ const output = {
   traffic_source: traffic?.meta?.source ?? null,
   traffic_collected_at: traffic?.meta?.collected_at ?? null,
   policy: "imbalance_score = predicted_demand_score - road_accessibility_proxy; priority_units are monitoring priority bands, not taxi counts",
+  policy_effect_summary: summarizeEffect(decisions),
   decisions,
 };
 

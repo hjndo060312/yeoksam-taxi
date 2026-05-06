@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-05T23:57:52.136Z",
+  "generated_at": "2026-05-06T02:04:13.140Z",
   "input_predictions_csv": "data/processed/model_live_compatible/dong_demand_proxy_live_predictions_2025.csv",
   "pattern_cache": "data/processed/model_live_compatible/demand_pattern_cache_2025.json",
   "interpretation": "Evaluates a leave-one-out same-hour pattern-mean baseline (grouped by dong, month, hour, weekday/weekend) against the 2025 supervised test rows. This is a sanity check for the JS-only fallback mode.",

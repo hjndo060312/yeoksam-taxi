@@ -1,5 +1,166 @@
 # School-Hours Handoff
 
+## 2026-05-06 13:27 KST map POI detail panel
+
+- Added a POI evidence panel to `/map`.
+  - The right sidebar now shows selected citydata POI details: current population range, congestion/speed, 1-hour population forecast, expected delta, observed time, forecast time, and pressure score.
+  - The POI list in the panel can switch the selected POI; verified with `Gangnam Station` showing `92,000-94,000` people and pressure `0.779`.
+  - Three.js POI markers now include invisible raycast hit targets, so clicking a rendered marker can select the same POI detail panel.
+- Kept the source boundary explicit: the panel says `citydata live` and does not imply direct taxi-call labels.
+- Verification:
+  - `npm.cmd run lint` OK
+  - `npm.cmd run build` OK
+  - Browser `/map`: POI detail panel visible, POI selection works from the panel, Three.js scene rendered.
+
+## 2026-05-06 13:18 KST service presentation and map wording pass
+
+- Rebuilt `/presentation` as a live briefing board instead of a static report page.
+  - It now reads current public artifacts directly: `data-summary`, demand forecast, traffic forecast, road validation, POI features, POI validation, and public-pressure baseline.
+  - The page flow is now: current run -> key metrics -> demand/road/POI outlook -> validation gaps -> model boundary -> artifacts -> official sources.
+  - Removed old `A-EYE`/AI-demo wording and the old source-download framing.
+- Tightened `/map` wording visible in the simulator:
+  - `Live` -> `실시간`
+  - `수요 프록시 패턴 베이스라인` -> `수요 전망 · 패턴 기준`
+  - `역삼동 주변 수요 heatmap` -> `역삼동 주변 수요 지도`
+  - `Heatmap 조건` -> `지도 조건`
+- Browser QA:
+  - `/presentation`: rendered with the new briefing title, no `원천 보기`, no console errors.
+  - `/data`: service-style data page still renders, no `원천 보기`, no console errors.
+  - `/map`: Three.js scene rendered after reload, updated Korean wording visible, no console errors.
+- Verification:
+  - `npm.cmd run lint` OK
+  - `npm.cmd run build` OK
+- Benchmark intent used for the UI pass: TomTom-style map/metric focus, HERE-style analyst board/result checks, and Uber Movement-style public mobility data narrative without copying their branding.
+
+## 2026-05-06 13:05 KST fresh live cycle
+
+- Refreshed the live demand cycle because the previous `12:00 KST` target had elapsed.
+  - Command: `npm.cmd run model:live:demand-cycle`
+  - New citydata snapshot: `data/raw/citydata/2026-05-06/1300.json`
+  - New weather snapshot: `data/raw/weather/2026-05-06/1300.json`
+  - New traffic snapshot: `data/raw/traffic/2026-05-06/1300.json`
+  - New forecast target: `2026-05-06 14:00 KST`
+- Current public-data proxy outputs:
+  - Demand proxy top 3: `Daechi 4-dong` `1.000`, `Nonhyeon 1-dong` `0.896`, `Yeoksam 1-dong` `0.420`
+  - Traffic congestion top 3: `Nonhyeon 1-dong` `0.897` / `14.5km/h`, `Cheongdam-dong` `0.706` / `17.9km/h`, `Sinsa-dong` `0.521` / `29.1km/h`
+  - Taxi-pressure top 3: `Nonhyeon 1-dong` priority `0.838` / `high`, `Daechi 4-dong` priority `0.534` / `watch`, `Samseong 1-dong` priority `0.274` / `low`
+  - POI pressure top 4: `Yeoksam Station` `0.784`, `Gangnam Station` `0.779`, `Seolleung Station` `0.754`, `Apgujeong Rodeo Street` `0.726`
+- POI forecast validation improved with the new observation:
+  - completed/waiting: `5` / `12`
+  - latest matched target: `2026-05-06 12:00 KST`
+  - matched rows: `10`, row coverage `100%`
+  - population MAE: `1,900`, MAPE `5.7%`
+  - congestion-level hit rate: `60%`
+  - population rank Spearman: `1.000`
+- Public pressure baseline:
+  - completed/waiting: `12` / `11`
+  - latest row count: `7`
+  - latest `priority_vs_public_pressure_spearman`: `-0.4286`
+  - Interpretation remains policy-check only; it is not taxi-call accuracy.
+- QA:
+  - Headless `/data`: new `13:00` collection and `14:00` target visible; no console errors.
+  - Headless `/map`: loading cleared, Three.js canvas rendered, fresh target/collection visible, `7` POI labels rendered, no console errors.
+- Verification:
+  - `npm.cmd run lint` OK
+  - `npm.cmd run build` OK
+- Next best step: add POI hover/click details on the map so each marker can show observed timestamp, current population range, congestion, 1-hour forecast, and public-data source.
+
+## 2026-05-06 12:50 KST service-style UI pass
+
+- User feedback: the pages still felt too much like an AI demo/report instead of a product-like service.
+- Reframed the top-level map and data UI toward a real operations-console tone:
+  - `/data` nav changed from `A-EYE DATA STATUS` to `교통 데이터 운영`
+  - `/data` first viewport now starts with a compact status strip: collection snapshot, forecast target, POI/dong count, and validation counts
+  - `/data` headline changed to `공개 데이터 운영 현황`
+  - the data boundary card is shorter and positioned like a service notice, not a presentation disclaimer block
+  - common cards were tightened from large rounded/shadowed report cards to smaller bordered service panels
+  - `/map` top overlay changed from `A-EYE LIVE / PRESENTATION / DATA CENTER` to `강남 교통 운영 / 발표 / 데이터`
+  - route metadata titles now read like service pages instead of “digital twin” marketing copy
+- The public-data honesty rule remains unchanged: all visible wording still frames demand as a public-data proxy and not KakaoT call labels.
+- Verification:
+  - `npm.cmd run lint` OK
+  - `npm.cmd run build` OK
+  - Headless `/data` render check showed the new operations header/status strip and no console errors
+  - Headless `/map` render check showed the new service header, POI markers, canvas rendered, and no console errors
+- Next best step: continue the same treatment below the fold by turning the validation and source sections into denser table/filter layouts rather than explanatory report sections.
+
+## 2026-05-06 11:55 KST POI markers on 3D map
+
+- Added live POI marker rendering to the Three.js map:
+  - `/map` now draws citydata-backed POIs from `public/poi-features.json` as small 3D pressure beacons with CSS2D labels.
+  - Marker labels show POI name, pressure score, current population, congestion level, and 1-hour population delta.
+  - Context-only OSM POIs remain excluded from live markers; only `source_status: citydata_live` rows are shown.
+- Kept the map connected to refreshed public artifacts:
+  - `MapSimulator` now starts with the bundled `poi-features.json` snapshot but also fetches `/poi-features.json` with `cache: "no-store"` every 10 minutes.
+  - This keeps later automation-generated POI snapshots visible on the map without implying direct taxi-call observations.
+- Browser QA:
+  - `/map` loading screen cleared.
+  - Three.js canvas rendered (`canvasCount=1`).
+  - POI label nodes rendered (`7` visible in the desktop viewport).
+  - Sample visible labels: `Yeoksam Station`, `Seolleung Station`, `Apgujeong Rodeo Street`, `Gangnam MICE Tourist Zone`.
+  - No browser console errors during the check.
+- Verification:
+  - `npm.cmd run lint` OK
+  - `npm.cmd run build` OK
+- Next best step: add a click/hover detail card for a selected POI so the map can show the same evidence as `/data`: observed timestamp, current population range, current congestion, 1-hour forecast, forecast delta, and source path.
+
+## 2026-05-06 11:40 KST POI forecast validation
+
+- Added `scripts/build-poi-forecast-comparison.mjs` to validate Seoul citydata POI 1-hour forecasts against later citydata observations.
+  - Output: `data/processed/live_validation/poi_forecast_comparison.json`
+  - Public output: `public/poi-forecast-comparison.json`
+  - The comparison skips failed citydata snapshots and only compares matched live citydata POIs; it does not use or imply taxi-call labels.
+- Wired the POI validation into the live cycle:
+  - added `build:poi-forecast-comparison` to `package.json`
+  - `scripts/run-live-demand-cycle.mjs` now runs the POI forecast comparison before dispatch/data-summary refresh
+  - `scripts/build-data-summary.mjs` now exposes `poi_forecast_validation`
+- Latest completed POI validation:
+  - completed/waiting: `3` / `13`
+  - latest target: `2026-05-06 10:00 KST`
+  - matched rows: `7`, row coverage `100%`
+  - population MAE: `5,214.3`, MAPE `13.6%`
+  - congestion-score MAE: `0.0714`
+  - congestion-level hit rate: `71.4%`
+  - population rank Spearman: `1.000`
+  - top predicted/observed POI: `Gangnam Station` / `Gangnam Station`
+- Updated `/data` POI section:
+  - added metric tiles for POI forecast validation, population forecast error, congestion-level hit rate, and top POI
+  - kept wording explicit that POI pressure is a public-data location signal, not taxi-call ground truth
+- Verification:
+  - `npm.cmd run lint` OK
+  - `npm.cmd run build` OK
+  - In-app browser backend was unavailable for this wakeup, so a headless Playwright fallback was used.
+  - Headless `/data`: page rendered with no console errors.
+  - Headless `/map`: loading screen cleared, Three.js canvas rendered (`canvasCount=1`), and live POI labels such as Gangnam/Seolleung/Yeoksam were present.
+- Next best step: render `public/poi-features.json` as real POI markers/popup overlays on the 3D map, then add marker-level click details for current population, 1-hour forecast, congestion, and source timestamp.
+
+## 2026-05-06 11:25 KST POI-centered realtime pipeline
+
+- Shifted the next improvement track from only administrative-dong summaries toward POI-level signals.
+- Added `data/config/gangnam-pois.json`:
+  - official Seoul citydata collection POIs now include 10 live hotspots: `POI001`, `POI014`, `POI018`, `POI034`, `POI037`, `POI041`, `POI042`, `POI059`, `POI071`, `POI080`
+  - supplemental OSM/context POIs are tracked separately for places without a verified citydata hotspot code: 학동역, 언주역, 강남구청역, 대치역, 한티역, 테헤란로
+  - important: supplemental POIs are not treated as live citydata observations
+- Updated citydata collection:
+  - `scripts/collect-citydata.mjs` and `scripts/collect-citydata-loop.mjs` now read the POI list from `data/config/gangnam-pois.json`
+  - `src/app/api/realtime/route.ts` uses the same config and returns POI metadata with each place
+- Added POI feature output:
+  - `scripts/build-feature-snapshot.mjs` now writes `data/processed/features/poi-features.json` and `public/poi-features.json`
+  - each live POI row stores current population, current congestion, road speed, citydata 1-hour population forecast, population delta, and `poi_pressure_score`
+  - `scripts/build-data-summary.mjs` now exposes a `poi_features` summary
+- Updated `/data` with a `POI별 실시간 성적표` section.
+- Refreshed live artifacts with `npm.cmd run model:live:demand-cycle`:
+  - latest citydata/weather snapshots: `2026-05-06 11:17 KST`
+  - live citydata POI rows: `10`; supplemental POIs: `6`
+  - top POIs by POI pressure: 역삼역 `0.730`, 강남역 `0.726`, 선릉역 `0.726`, 압구정로데오거리 `0.691`
+  - public pressure baseline latest row coverage improved to `7` rows; latest `priority_vs_public_pressure_spearman` is `-0.4286`
+- Verification:
+  - `npm.cmd run lint` OK
+  - `npm.cmd run build` OK
+  - Browser `/data`: POI section rendered, counts visible, top POIs visible
+  - Browser `/map`: loading screen cleared and Three.js canvas rendered (`canvasCount=1`)
+- Next best step: render POI markers/popup on the 3D map using `public/poi-features.json`, then add a POI forecast-vs-observed comparison log for citydata 1-hour population/congestion forecasts.
+
 ## 2026-05-06 10:31 KST pressure validation reframed
 
 - Reframed taxi-pressure comparison as a policy check instead of accuracy scoring:
