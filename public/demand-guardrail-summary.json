@@ -1,7 +1,7 @@
 {
   "source": "public_proxy_demand_guardrail_v1",
-  "generated_at": "2026-05-07T09:07:46.283Z",
-  "target_datetime": "2026-05-07T19:00:00+09:00",
+  "generated_at": "2026-05-07T10:52:48.704Z",
+  "target_datetime": "2026-05-07T20:00:00+09:00",
   "forecast_strategy": "pattern",
   "interpretation": "동별 수요 proxy 예측을 패턴 baseline, 2026 사후 proxy 검증, live 교통 혼잡, citydata POI 인구 pressure와 대조해 monitoring confidence를 산출합니다. 택시 호출량 정확도나 배차 지시가 아닙니다.",
   "global_baseline_readiness": {
@@ -24,30 +24,30 @@
   "top_monitoring_dongs": [
     {
       "dong_name": "논현1동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.8855,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.851,
       "confidence_score": 0.6865,
-      "monitoring_priority_score": 0.7606,
+      "monitoring_priority_score": 0.7309,
       "confidence_level": "high",
       "recommended_use": "monitoring_priority",
       "demand": {
         "score": 1,
         "rank": 1,
-        "raw_prediction": 46.94587,
+        "raw_prediction": 35.553923,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.9274,
+        "predicted_congestion_score": 0.9042,
         "rank": 1,
-        "current_congestion_score": 0.809,
+        "current_congestion_score": 0.748,
         "current_link_count": 19
       },
       "population": {
-        "avg_poi_pressure_score": 0.629,
+        "avg_poi_pressure_score": 0.519,
         "rank": 4,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 15000,
-        "forecast_population_delta": 0
+        "forecast_population_mid_sum": 13000,
+        "forecast_population_delta": -2000
       },
       "validation": {
         "spearman_r_2026_proxy": 0.46123285714120177,
@@ -61,36 +61,36 @@
         "risk_flags": [
           "pattern_fallback_used"
         ],
-        "recent_top_count": 2,
+        "recent_top_count": 3,
         "latest_top_region": "논현1동"
       }
     },
     {
       "dong_name": "역삼1동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.6068,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.6224,
       "confidence_score": 0.684,
-      "monitoring_priority_score": 0.5205,
+      "monitoring_priority_score": 0.5339,
       "confidence_level": "high",
       "recommended_use": "monitoring_priority",
       "demand": {
-        "score": 0.6768,
-        "rank": 3,
-        "raw_prediction": 34.77068,
+        "score": 0.7901,
+        "rank": 2,
+        "raw_prediction": 29.943799,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.384,
+        "predicted_congestion_score": 0.3576,
         "rank": 5,
-        "current_congestion_score": 0.804,
+        "current_congestion_score": 0.754,
         "current_link_count": 91
       },
       "population": {
-        "avg_poi_pressure_score": 0.748,
+        "avg_poi_pressure_score": 0.6385,
         "rank": 1,
         "live_poi_count": 2,
-        "forecast_population_mid_sum": 120000,
-        "forecast_population_delta": -8000
+        "forecast_population_mid_sum": 102000,
+        "forecast_population_delta": -4000
       },
       "validation": {
         "spearman_r_2026_proxy": 0.3730353451932114,
@@ -110,30 +110,30 @@
     },
     {
       "dong_name": "삼성1동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.5306,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.5023,
       "confidence_score": 0.6576,
-      "monitoring_priority_score": 0.4488,
+      "monitoring_priority_score": 0.4249,
       "confidence_level": "medium",
       "recommended_use": "watch_with_live_signals",
       "demand": {
-        "score": 0.4824,
+        "score": 0.5749,
         "rank": 4,
-        "raw_prediction": 27.444901,
+        "raw_prediction": 24.194077,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.5468,
+        "predicted_congestion_score": 0.5146,
         "rank": 3,
-        "current_congestion_score": 0.829,
+        "current_congestion_score": 0.793,
         "current_link_count": 12
       },
       "population": {
-        "avg_poi_pressure_score": 0.598,
+        "avg_poi_pressure_score": 0.357,
         "rank": 5,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 19000,
-        "forecast_population_delta": -4000
+        "forecast_population_mid_sum": 15000,
+        "forecast_population_delta": 0
       },
       "validation": {
         "spearman_r_2026_proxy": 0.182861384616005,
@@ -154,30 +154,30 @@
     },
     {
       "dong_name": "삼성2동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.4755,
-      "confidence_score": 0.741,
-      "monitoring_priority_score": 0.4201,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.4583,
+      "confidence_score": 0.7785,
+      "monitoring_priority_score": 0.4126,
       "confidence_level": "high",
       "recommended_use": "monitoring_priority",
       "demand": {
-        "score": 0.4584,
-        "rank": 6,
-        "raw_prediction": 26.542017,
+        "score": 0.5652,
+        "rank": 5,
+        "raw_prediction": 23.934138,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.3006,
-        "rank": 9,
-        "current_congestion_score": 0.791,
+        "predicted_congestion_score": 0.2166,
+        "rank": 8,
+        "current_congestion_score": 0.57,
         "current_link_count": 23
       },
       "population": {
-        "avg_poi_pressure_score": 0.716,
-        "rank": 2,
+        "avg_poi_pressure_score": 0.556,
+        "rank": 3,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 53000,
-        "forecast_population_delta": -12000
+        "forecast_population_mid_sum": 43000,
+        "forecast_population_delta": -2000
       },
       "validation": {
         "spearman_r_2026_proxy": 0.6221987322011661,
@@ -186,7 +186,7 @@
       },
       "guardrails": {
         "baseline_strength_score": 0.6303,
-        "rank_agreement_score": 0.5625,
+        "rank_agreement_score": 0.6875,
         "live_coverage_score": 1,
         "risk_flags": [
           "pattern_fallback_used"
@@ -197,22 +197,22 @@
     },
     {
       "dong_name": "대치4동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.4307,
-      "confidence_score": 0.5074,
-      "monitoring_priority_score": 0.3352,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.409,
+      "confidence_score": 0.5449,
+      "monitoring_priority_score": 0.3252,
       "confidence_level": "medium",
       "recommended_use": "watch_with_live_signals",
       "demand": {
-        "score": 0.731,
-        "rank": 2,
-        "raw_prediction": 36.809299,
+        "score": 0.7283,
+        "rank": 3,
+        "raw_prediction": 28.293645,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.3391,
+        "predicted_congestion_score": 0.271,
         "rank": 6,
-        "current_congestion_score": 0.873,
+        "current_congestion_score": 0.692,
         "current_link_count": 18
       },
       "population": {
@@ -229,14 +229,14 @@
       },
       "guardrails": {
         "baseline_strength_score": 0.6303,
-        "rank_agreement_score": 0.5,
+        "rank_agreement_score": 0.625,
         "live_coverage_score": 0.55,
         "risk_flags": [
           "pattern_fallback_used",
           "no_live_population_poi_coverage",
           "recent_rank_volatility"
         ],
-        "recent_top_count": 3,
+        "recent_top_count": 2,
         "latest_top_region": "논현1동"
       }
     }
@@ -244,30 +244,30 @@
   "dongs": [
     {
       "dong_name": "논현1동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.8855,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.851,
       "confidence_score": 0.6865,
-      "monitoring_priority_score": 0.7606,
+      "monitoring_priority_score": 0.7309,
       "confidence_level": "high",
       "recommended_use": "monitoring_priority",
       "demand": {
         "score": 1,
         "rank": 1,
-        "raw_prediction": 46.94587,
+        "raw_prediction": 35.553923,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.9274,
+        "predicted_congestion_score": 0.9042,
         "rank": 1,
-        "current_congestion_score": 0.809,
+        "current_congestion_score": 0.748,
         "current_link_count": 19
       },
       "population": {
-        "avg_poi_pressure_score": 0.629,
+        "avg_poi_pressure_score": 0.519,
         "rank": 4,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 15000,
-        "forecast_population_delta": 0
+        "forecast_population_mid_sum": 13000,
+        "forecast_population_delta": -2000
       },
       "validation": {
         "spearman_r_2026_proxy": 0.46123285714120177,
@@ -281,36 +281,36 @@
         "risk_flags": [
           "pattern_fallback_used"
         ],
-        "recent_top_count": 2,
+        "recent_top_count": 3,
         "latest_top_region": "논현1동"
       }
     },
     {
       "dong_name": "역삼1동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.6068,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.6224,
       "confidence_score": 0.684,
-      "monitoring_priority_score": 0.5205,
+      "monitoring_priority_score": 0.5339,
       "confidence_level": "high",
       "recommended_use": "monitoring_priority",
       "demand": {
-        "score": 0.6768,
-        "rank": 3,
-        "raw_prediction": 34.77068,
+        "score": 0.7901,
+        "rank": 2,
+        "raw_prediction": 29.943799,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.384,
+        "predicted_congestion_score": 0.3576,
         "rank": 5,
-        "current_congestion_score": 0.804,
+        "current_congestion_score": 0.754,
         "current_link_count": 91
       },
       "population": {
-        "avg_poi_pressure_score": 0.748,
+        "avg_poi_pressure_score": 0.6385,
         "rank": 1,
         "live_poi_count": 2,
-        "forecast_population_mid_sum": 120000,
-        "forecast_population_delta": -8000
+        "forecast_population_mid_sum": 102000,
+        "forecast_population_delta": -4000
       },
       "validation": {
         "spearman_r_2026_proxy": 0.3730353451932114,
@@ -330,30 +330,30 @@
     },
     {
       "dong_name": "삼성1동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.5306,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.5023,
       "confidence_score": 0.6576,
-      "monitoring_priority_score": 0.4488,
+      "monitoring_priority_score": 0.4249,
       "confidence_level": "medium",
       "recommended_use": "watch_with_live_signals",
       "demand": {
-        "score": 0.4824,
+        "score": 0.5749,
         "rank": 4,
-        "raw_prediction": 27.444901,
+        "raw_prediction": 24.194077,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.5468,
+        "predicted_congestion_score": 0.5146,
         "rank": 3,
-        "current_congestion_score": 0.829,
+        "current_congestion_score": 0.793,
         "current_link_count": 12
       },
       "population": {
-        "avg_poi_pressure_score": 0.598,
+        "avg_poi_pressure_score": 0.357,
         "rank": 5,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 19000,
-        "forecast_population_delta": -4000
+        "forecast_population_mid_sum": 15000,
+        "forecast_population_delta": 0
       },
       "validation": {
         "spearman_r_2026_proxy": 0.182861384616005,
@@ -374,30 +374,30 @@
     },
     {
       "dong_name": "삼성2동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.4755,
-      "confidence_score": 0.741,
-      "monitoring_priority_score": 0.4201,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.4583,
+      "confidence_score": 0.7785,
+      "monitoring_priority_score": 0.4126,
       "confidence_level": "high",
       "recommended_use": "monitoring_priority",
       "demand": {
-        "score": 0.4584,
-        "rank": 6,
-        "raw_prediction": 26.542017,
+        "score": 0.5652,
+        "rank": 5,
+        "raw_prediction": 23.934138,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.3006,
-        "rank": 9,
-        "current_congestion_score": 0.791,
+        "predicted_congestion_score": 0.2166,
+        "rank": 8,
+        "current_congestion_score": 0.57,
         "current_link_count": 23
       },
       "population": {
-        "avg_poi_pressure_score": 0.716,
-        "rank": 2,
+        "avg_poi_pressure_score": 0.556,
+        "rank": 3,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 53000,
-        "forecast_population_delta": -12000
+        "forecast_population_mid_sum": 43000,
+        "forecast_population_delta": -2000
       },
       "validation": {
         "spearman_r_2026_proxy": 0.6221987322011661,
@@ -406,7 +406,7 @@
       },
       "guardrails": {
         "baseline_strength_score": 0.6303,
-        "rank_agreement_score": 0.5625,
+        "rank_agreement_score": 0.6875,
         "live_coverage_score": 1,
         "risk_flags": [
           "pattern_fallback_used"
@@ -417,22 +417,22 @@
     },
     {
       "dong_name": "대치4동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.4307,
-      "confidence_score": 0.5074,
-      "monitoring_priority_score": 0.3352,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.409,
+      "confidence_score": 0.5449,
+      "monitoring_priority_score": 0.3252,
       "confidence_level": "medium",
       "recommended_use": "watch_with_live_signals",
       "demand": {
-        "score": 0.731,
-        "rank": 2,
-        "raw_prediction": 36.809299,
+        "score": 0.7283,
+        "rank": 3,
+        "raw_prediction": 28.293645,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.3391,
+        "predicted_congestion_score": 0.271,
         "rank": 6,
-        "current_congestion_score": 0.873,
+        "current_congestion_score": 0.692,
         "current_link_count": 18
       },
       "population": {
@@ -449,43 +449,43 @@
       },
       "guardrails": {
         "baseline_strength_score": 0.6303,
-        "rank_agreement_score": 0.5,
+        "rank_agreement_score": 0.625,
         "live_coverage_score": 0.55,
         "risk_flags": [
           "pattern_fallback_used",
           "no_live_population_poi_coverage",
           "recent_rank_volatility"
         ],
-        "recent_top_count": 3,
+        "recent_top_count": 2,
         "latest_top_region": "논현1동"
       }
     },
     {
       "dong_name": "청담동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.3508,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.3221,
       "confidence_score": 0.7214,
-      "monitoring_priority_score": 0.3068,
+      "monitoring_priority_score": 0.2817,
       "confidence_level": "high",
       "recommended_use": "monitoring_priority",
       "demand": {
-        "score": 0.0629,
+        "score": 0.0935,
         "rank": 7,
-        "raw_prediction": 11.639389,
+        "raw_prediction": 11.332244,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.7016,
+        "predicted_congestion_score": 0.6883,
         "rank": 2,
-        "current_congestion_score": 0.665,
+        "current_congestion_score": 0.689,
         "current_link_count": 33
       },
       "population": {
-        "avg_poi_pressure_score": 0.448,
+        "avg_poi_pressure_score": 0.294,
         "rank": 6,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 8250,
-        "forecast_population_delta": -500
+        "forecast_population_mid_sum": 6750,
+        "forecast_population_delta": 0
       },
       "validation": {
         "spearman_r_2026_proxy": 0.5379373548885993,
@@ -505,30 +505,30 @@
     },
     {
       "dong_name": "신사동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.3273,
-      "confidence_score": 0.5933,
-      "monitoring_priority_score": 0.2674,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.2864,
+      "confidence_score": 0.5746,
+      "monitoring_priority_score": 0.2316,
       "confidence_level": "medium",
       "recommended_use": "watch_with_live_signals",
       "demand": {
         "score": 0,
         "rank": 9,
-        "raw_prediction": 9.269337,
+        "raw_prediction": 8.832484,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.5451,
+        "predicted_congestion_score": 0.4371,
         "rank": 4,
-        "current_congestion_score": 0.597,
+        "current_congestion_score": 0.479,
         "current_link_count": 47
       },
       "population": {
-        "avg_poi_pressure_score": 0.655,
-        "rank": 3,
+        "avg_poi_pressure_score": 0.621,
+        "rank": 2,
         "live_poi_count": 1,
-        "forecast_population_mid_sum": 31000,
-        "forecast_population_delta": -2000
+        "forecast_population_mid_sum": 29000,
+        "forecast_population_delta": 0
       },
       "validation": {
         "spearman_r_2026_proxy": 0.4624160146080787,
@@ -537,7 +537,7 @@
       },
       "guardrails": {
         "baseline_strength_score": 0.6303,
-        "rank_agreement_score": 0.3125,
+        "rank_agreement_score": 0.25,
         "live_coverage_score": 1,
         "risk_flags": [
           "pattern_fallback_used",
@@ -549,22 +549,22 @@
     },
     {
       "dong_name": "논현2동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.3062,
-      "confidence_score": 0.5501,
-      "monitoring_priority_score": 0.2442,
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.2657,
+      "confidence_score": 0.5126,
+      "monitoring_priority_score": 0.2074,
       "confidence_level": "medium",
       "recommended_use": "watch_with_live_signals",
       "demand": {
-        "score": 0.4706,
-        "rank": 5,
-        "raw_prediction": 26.999759,
+        "score": 0.507,
+        "rank": 6,
+        "raw_prediction": 22.379274,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.3149,
-        "rank": 7,
-        "current_congestion_score": 0.6,
+        "predicted_congestion_score": 0.1253,
+        "rank": 9,
+        "current_congestion_score": 0.2,
         "current_link_count": 2
       },
       "population": {
@@ -581,7 +581,7 @@
       },
       "guardrails": {
         "baseline_strength_score": 0.6303,
-        "rank_agreement_score": 0.75,
+        "rank_agreement_score": 0.625,
         "live_coverage_score": 0.55,
         "risk_flags": [
           "pattern_fallback_used",
@@ -595,22 +595,22 @@
     },
     {
       "dong_name": "역삼2동",
-      "target_datetime": "2026-05-07T19:00:00+09:00",
-      "composite_pressure_score": 0.1138,
-      "confidence_score": 0.632,
-      "monitoring_priority_score": 0.095,
-      "confidence_level": "medium",
-      "recommended_use": "watch_with_live_signals",
+      "target_datetime": "2026-05-07T20:00:00+09:00",
+      "composite_pressure_score": 0.1036,
+      "confidence_score": 0.7595,
+      "monitoring_priority_score": 0.0924,
+      "confidence_level": "high",
+      "recommended_use": "monitoring_priority",
       "demand": {
-        "score": 0.0446,
+        "score": 0.0624,
         "rank": 8,
-        "raw_prediction": 10.950912,
+        "raw_prediction": 10.501119,
         "model_confidence": 0.58
       },
       "traffic": {
-        "predicted_congestion_score": 0.3124,
-        "rank": 8,
-        "current_congestion_score": 0.727,
+        "predicted_congestion_score": 0.2518,
+        "rank": 7,
+        "current_congestion_score": 0.599,
         "current_link_count": 19
       },
       "population": {
@@ -627,7 +627,7 @@
       },
       "guardrails": {
         "baseline_strength_score": 0.6303,
-        "rank_agreement_score": 0.45,
+        "rank_agreement_score": 0.875,
         "live_coverage_score": 0.55,
         "risk_flags": [
           "pattern_fallback_used",
