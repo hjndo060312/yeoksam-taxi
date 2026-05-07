@@ -1,21 +1,21 @@
 # Overnight Model QA Status
 
-Generated: 2026. 05. 08. 24:05 KST
+Generated: 2026. 05. 08. 24:55 KST
 
 This file is updated by the overnight model QA cycle. It tracks public-data
 proxy forecasts, not direct call-volume predictions.
 
 ## API Collection
 
-- Citydata collected: 2026. 05. 08. 24:05
-- Raw citydata: `data/raw/citydata/2026-05-08/0005.json`
-- Raw weather: `data/raw/weather/2026-05-08/0005.json`
+- Citydata collected: 2026. 05. 08. 24:55
+- Raw citydata: `data/raw/citydata/2026-05-08/0055.json`
+- Raw weather: `data/raw/weather/2026-05-08/0055.json`
 - KMA status: OK (200)
 - Weather note: 강수 없음. 데이터 누락이 아닙니다.
-- Temperature: 14.1 C
+- Temperature: 13.8 C
 - Precipitation 1h: 0 mm
-- Humidity: 85%
-- Wind: 0.5 m/s
+- Humidity: 83%
+- Wind: 1.2 m/s
 
 ## Latest Targets
 
@@ -27,11 +27,11 @@ proxy forecasts, not direct call-volume predictions.
 
 | Rank | Dong | Score | Level |
 | ---: | --- | ---: | --- |
-| 1 | 역삼1동 | 0.5335 | watch |
-| 2 | 논현1동 | 0.4210 | watch |
-| 3 | 청담동 | 0.2396 | low |
-| 4 | 역삼2동 | 0.1832 | low |
-| 5 | 대치4동 | 0.1754 | low |
+| 1 | 역삼1동 | 0.5334 | watch |
+| 2 | 논현1동 | 0.4103 | watch |
+| 3 | 청담동 | 0.2460 | low |
+| 4 | 대치4동 | 0.1913 | low |
+| 5 | 역삼2동 | 0.1886 | low |
 
 ## Demand Proxy Top Regions
 
@@ -45,19 +45,19 @@ proxy forecasts, not direct call-volume predictions.
 
 | Rank | Dong | Score | Level |
 | ---: | --- | ---: | --- |
-| 1 | 논현1동 | 0.7754 | - |
-| 2 | 청담동 | 0.5308 | - |
-| 3 | 신사동 | 0.3701 | - |
+| 1 | 논현1동 | 0.7549 | - |
+| 2 | 청담동 | 0.5465 | - |
+| 3 | 신사동 | 0.3867 | - |
 
 ## Guardrail Monitoring Priority
 
 | Rank | Dong | Priority | Pressure | Confidence | Level | Risk flags |
 | ---: | --- | ---: | ---: | ---: | --- | --- |
-| 1 | 역삼1동 | 0.5359 | 0.6247 | 0.6840 | high | pattern_fallback_used |
-| 2 | 논현1동 | 0.3937 | 0.4452 | 0.7428 | high | pattern_fallback_used, recent_rank_volatility |
-| 3 | 청담동 | 0.2316 | 0.2700 | 0.6839 | high | pattern_fallback_used |
-| 4 | 삼성1동 | 0.1952 | 0.2308 | 0.6576 | medium | pattern_fallback_used, weak_2026_proxy_validation |
-| 5 | 역삼2동 | 0.1813 | 0.2246 | 0.5720 | medium | pattern_fallback_used, signals_disagree, no_live_population_poi_coverage |
+| 1 | 역삼1동 | 0.5216 | 0.6141 | 0.6652 | medium | pattern_fallback_used |
+| 2 | 논현1동 | 0.3774 | 0.4268 | 0.7428 | high | pattern_fallback_used, recent_rank_volatility |
+| 3 | 청담동 | 0.2416 | 0.2817 | 0.6839 | high | pattern_fallback_used |
+| 4 | 삼성1동 | 0.2028 | 0.2397 | 0.6576 | medium | pattern_fallback_used, weak_2026_proxy_validation |
+| 5 | 역삼2동 | 0.1870 | 0.2269 | 0.6095 | medium | pattern_fallback_used, signals_disagree, no_live_population_poi_coverage |
 
 - Guardrail target: 2026. 05. 08. 01:00
 - Forecast strategy: pattern
@@ -73,16 +73,16 @@ proxy forecasts, not direct call-volume predictions.
 
 ## Validation
 
-- Taxi pressure comparison status: has_completed_comparison
-- Taxi pressure log count: 19
-- Completed comparisons: 1
-- Waiting comparisons: 18
-- Live demand log count: 51
-- Latest comparison kind: completed
-- Latest comparison target: 2026. 05. 07. 23:00
-- Latest comparison top predicted: 논현1동
-- Latest comparison top observed congestion: 대치4동
-- Latest road-signal Spearman (policy check): 0.4333
+- Taxi pressure comparison status: waiting_for_observation
+- Taxi pressure log count: 20
+- Completed comparisons: 0
+- Waiting comparisons: 20
+- Live demand log count: 52
+- Latest comparison kind: waiting
+- Latest comparison target: 2026. 05. 08. 01:00
+- Latest comparison top predicted: 역삼1동
+- Latest comparison top observed congestion: -
+- Latest road-signal Spearman (policy check): -
 - POI forecast completed/waiting: 0 / 1
 - Latest POI forecast target: 2026. 05. 08. 01:00
 - Latest POI matched rows: -
@@ -96,7 +96,7 @@ proxy forecasts, not direct call-volume predictions.
 - Intervention areas: 1
 - Monitoring units: 3
 - Max incentive multiplier: 1.2
-- Positive imbalance before: 0.541
-- Estimated positive imbalance after: 0.231
+- Positive imbalance before: 0.527
+- Estimated positive imbalance after: 0.217
 - Estimated relief score: 0.31
 - Highest relief dong: 역삼1동
