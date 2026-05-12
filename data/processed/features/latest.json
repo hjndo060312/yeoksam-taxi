@@ -1,10 +1,10 @@
 {
   "source": "public_signal_feature_snapshot_v1",
-  "generated_at": "2026-05-12T18:55:07.609Z",
-  "raw_citydata_path": "data/raw/citydata/2026-05-13/0350.json",
-  "raw_weather_path": "data/raw/weather/2026-05-13/0355.json",
-  "raw_citydata_attempt_path": "data/raw/citydata/2026-05-13/0350.json",
-  "raw_weather_attempt_path": "data/raw/weather/2026-05-13/0355.json",
+  "generated_at": "2026-05-12T19:47:08.426Z",
+  "raw_citydata_path": "data/raw/citydata/2026-05-13/0442.json",
+  "raw_weather_path": "data/raw/weather/2026-05-13/0447.json",
+  "raw_citydata_attempt_path": "data/raw/citydata/2026-05-13/0442.json",
+  "raw_weather_attempt_path": "data/raw/weather/2026-05-13/0447.json",
   "raw_citydata_attempt_meta": {
     "source": "Seoul citydata OA-21285",
     "ok": false,
@@ -47,7 +47,7 @@
         "error": "fetch failed"
       }
     ],
-    "collected_at": "2026-05-12T18:50:01.997Z",
+    "collected_at": "2026-05-12T19:42:02.270Z",
     "poi_codes": [
       "POI001",
       "POI014",
@@ -63,9 +63,9 @@
     "ok": true,
     "status": 200,
     "error": null,
-    "collected_at": "2026-05-12T18:55:04.848Z",
+    "collected_at": "2026-05-12T19:47:05.622Z",
     "base_date": "20260513",
-    "base_time": "0300",
+    "base_time": "0400",
     "grid": {
       "nx": 61,
       "ny": 125
@@ -83,8 +83,8 @@
     "temperature_c": 13.2,
     "precipitation_mm_1h": 0,
     "precipitation_type_code": "0",
-    "humidity_pct": 88,
-    "wind_speed_ms": 1.2
+    "humidity_pct": 87,
+    "wind_speed_ms": 0.9
   },
   "features": []
 }
