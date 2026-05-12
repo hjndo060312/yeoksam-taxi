@@ -1,7 +1,7 @@
 {
   "source": "gangnam_poi_feature_snapshot_v1",
-  "generated_at": "2026-05-12T20:47:38.456Z",
-  "raw_citydata_path": "data/raw/citydata/2026-05-13/0542.json",
+  "generated_at": "2026-05-12T21:42:26.728Z",
+  "raw_citydata_path": "data/raw/citydata/2026-05-13/0637.json",
   "official_reference": {
     "name": "Seoul real-time citydata OA-21285 update notice",
     "url": "https://data.seoul.go.kr/together/notice/datasetNoticeView.do?bbsCd=10008&ditcCd=&pageIndex=1&seq=27399e1302ead42db866fa14824c4c56"

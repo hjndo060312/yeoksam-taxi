@@ -1,65 +1,65 @@
 # Overnight Model QA Status
 
-Generated: 2026. 05. 13. 05:47 KST
+Generated: 2026. 05. 13. 06:42 KST
 
 This file is updated by the overnight model QA cycle. It tracks public-data
 proxy forecasts, not direct call-volume predictions.
 
 ## API Collection
 
-- Citydata collected: 2026. 05. 13. 05:42
-- Raw citydata: `data/raw/citydata/2026-05-13/0542.json`
-- Raw weather: `data/raw/weather/2026-05-13/0547.json`
+- Citydata collected: 2026. 05. 13. 06:37
+- Raw citydata: `data/raw/citydata/2026-05-13/0637.json`
+- Raw weather: `data/raw/weather/2026-05-13/0642.json`
 - KMA status: OK (200)
 - Weather note: 강수 없음. 데이터 누락이 아닙니다.
-- Temperature: 13.1 C
+- Temperature: 13.7 C
 - Precipitation 1h: 0 mm
-- Humidity: 88%
-- Wind: 0.8 m/s
+- Humidity: 85%
+- Wind: 1.7 m/s
 
 ## Latest Targets
 
-- Demand target: 2026. 05. 13. 06:00
-- Traffic target: 2026. 05. 13. 06:00
-- Taxi pressure target: 2026. 05. 13. 06:00
+- Demand target: 2026. 05. 13. 07:00
+- Traffic target: 2026. 05. 13. 07:00
+- Taxi pressure target: 2026. 05. 13. 07:00
 
 ## Taxi Pressure Top Regions
 
 | Rank | Dong | Score | Level |
 | ---: | --- | ---: | --- |
-| 1 | 논현1동 | 0.6342 | medium |
-| 2 | 삼성1동 | 0.4914 | watch |
-| 3 | 대치4동 | 0.3848 | low |
-| 4 | 역삼1동 | 0.2572 | low |
-| 5 | 청담동 | 0.2517 | low |
+| 1 | 논현1동 | 0.6512 | medium |
+| 2 | 대치4동 | 0.3848 | low |
+| 3 | 삼성1동 | 0.3630 | low |
+| 4 | 청담동 | 0.2851 | low |
+| 5 | 논현2동 | 0.2838 | low |
 
 ## Demand Proxy Top Regions
 
 | Rank | Dong | Score | Level |
 | ---: | --- | ---: | --- |
 | 1 | 대치4동 | 1.0000 | - |
-| 2 | 삼성1동 | 0.8845 | - |
-| 3 | 역삼1동 | 0.6413 | - |
+| 2 | 삼성1동 | 0.6550 | - |
+| 3 | 논현2동 | 0.6227 | - |
 
 ## Traffic Congestion Top Regions
 
 | Rank | Dong | Score | Level |
 | ---: | --- | ---: | --- |
 | 1 | 논현1동 | 1.0000 | - |
-| 2 | 청담동 | 0.6873 | - |
-| 3 | 신사동 | 0.5119 | - |
+| 2 | 청담동 | 0.7872 | - |
+| 3 | 신사동 | 0.6345 | - |
 
 ## Guardrail Monitoring Priority
 
 | Rank | Dong | Priority | Pressure | Confidence | Level | Risk flags |
 | ---: | --- | ---: | ---: | ---: | --- | --- |
-| 1 | 논현1동 | 0.4317 | 0.5275 | 0.5965 | medium | pattern_fallback_used, no_live_population_poi_coverage, thin_current_traffic_links |
-| 2 | 삼성1동 | 0.3939 | 0.4995 | 0.5301 | medium | pattern_fallback_used, weak_2026_proxy_validation, no_live_population_poi_coverage, thin_current_traffic_links, recent_rank_volatility |
-| 3 | 대치4동 | 0.3275 | 0.4500 | 0.3949 | low | pattern_fallback_used, signals_disagree, no_live_population_poi_coverage, thin_current_traffic_links |
-| 4 | 역삼1동 | 0.2396 | 0.2994 | 0.5565 | medium | pattern_fallback_used, no_live_population_poi_coverage, thin_current_traffic_links |
-| 5 | 청담동 | 0.1878 | 0.2346 | 0.5564 | medium | pattern_fallback_used, signals_disagree, no_live_population_poi_coverage, thin_current_traffic_links |
+| 1 | 논현1동 | 0.4324 | 0.5394 | 0.5590 | medium | pattern_fallback_used, no_live_population_poi_coverage, thin_current_traffic_links |
+| 2 | 대치4동 | 0.3275 | 0.4500 | 0.3949 | low | pattern_fallback_used, signals_disagree, no_live_population_poi_coverage, thin_current_traffic_links |
+| 3 | 삼성1동 | 0.3145 | 0.3988 | 0.5301 | medium | pattern_fallback_used, weak_2026_proxy_validation, no_live_population_poi_coverage, thin_current_traffic_links, recent_rank_volatility |
+| 4 | 논현2동 | 0.2598 | 0.3257 | 0.5501 | medium | pattern_fallback_used, weak_2026_proxy_validation, no_live_population_poi_coverage, thin_current_traffic_links |
+| 5 | 역삼1동 | 0.2350 | 0.2875 | 0.5940 | medium | pattern_fallback_used, no_live_population_poi_coverage, thin_current_traffic_links |
 
-- Guardrail target: 2026. 05. 13. 06:00
+- Guardrail target: 2026. 05. 13. 07:00
 - Forecast strategy: pattern
 - Baseline strength score: 0.6303
 - Model vs pattern MAE improvement: 6.5%
@@ -74,14 +74,14 @@ proxy forecasts, not direct call-volume predictions.
 ## Validation
 
 - Taxi pressure comparison status: has_completed_comparison
-- Taxi pressure log count: 121
+- Taxi pressure log count: 122
 - Completed comparisons: 1
-- Waiting comparisons: 120
-- Live demand log count: 153
+- Waiting comparisons: 121
+- Live demand log count: 154
 - Latest comparison kind: completed
-- Latest comparison target: 2026. 05. 13. 05:00
-- Latest comparison top predicted: 삼성1동
-- Latest comparison top observed congestion: 삼성1동
+- Latest comparison target: 2026. 05. 13. 06:00
+- Latest comparison top predicted: 논현1동
+- Latest comparison top observed congestion: 논현1동
 - Latest road-signal Spearman (policy check): 1
 - POI forecast completed/waiting: 0 / 0
 - Latest POI forecast target: -
@@ -93,10 +93,10 @@ proxy forecasts, not direct call-volume predictions.
 ## Dispatch Effect Proxy
 
 - Method: proxy_counterfactual_v1
-- Intervention areas: 2
-- Monitoring units: 3
+- Intervention areas: 1
+- Monitoring units: 2
 - Max incentive multiplier: 1.1
-- Positive imbalance before: 0.484
-- Estimated positive imbalance after: 0.191
-- Estimated relief score: 0.293
+- Positive imbalance before: 0.3
+- Estimated positive imbalance after: 0.105
+- Estimated relief score: 0.195
 - Highest relief dong: 대치4동
