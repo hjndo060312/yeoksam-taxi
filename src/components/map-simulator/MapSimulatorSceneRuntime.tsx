@@ -226,6 +226,7 @@ type MapPoiFeatureRow = {
   lat: number | null;
   current_population_mid: number | null;
   current_congestion_level: string | null;
+  current_traffic_index?: string | null;
   current_traffic_speed_kmh: number | null;
   poi_pressure_score: number | null;
   population_forecast_1h: {
@@ -263,11 +264,10 @@ function poiMarkerElement(poi: MapPoiFeatureRow) {
   const element = document.createElement("div");
   const score = poi.poi_pressure_score ?? 0;
   const accent = poiMarkerColor(score);
-  const forecastDelta = poi.forecast_population_delta ?? null;
-  const deltaLabel =
-    forecastDelta == null
-      ? "1h -"
-      : `${forecastDelta >= 0 ? "+" : ""}${formatPoiPopulation(forecastDelta)}`;
+  const speedLabel =
+    poi.current_traffic_speed_kmh == null
+      ? poi.current_traffic_index ?? "-"
+      : `${poi.current_traffic_speed_kmh}km/h`;
 
   element.dataset.labelKind = "poi";
   element.style.display = "grid";
@@ -319,7 +319,7 @@ function poiMarkerElement(poi: MapPoiFeatureRow) {
   detail.style.fontSize = "9px";
   detail.textContent = `${formatPoiPopulation(poi.current_population_mid)}명 · ${
     poi.current_congestion_level ?? "-"
-  } · ${deltaLabel}`;
+  } · ${speedLabel}`;
   element.appendChild(detail);
 
   return element;
