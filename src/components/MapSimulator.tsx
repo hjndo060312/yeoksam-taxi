@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronDown,
+  ChevronUp,
   Gauge,
   Map as MapIcon,
   Maximize2,
@@ -109,7 +111,6 @@ const MAP_POI_FEATURE_ROWS = (poiFeatures.direct_citydata_rows ?? [])
 const POI_FEATURE_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 
 const MAP_SCOPE_LABEL = "역삼동 주변 9개 동";
-const MAP_SCOPE_DONGS = "역삼1·2, 논현1·2, 삼성1·2, 신사, 청담, 대치4";
 const PRIMARY_SUBWAY_STATION_NAMES = new Set(["강남", "역삼", "선릉", "신논현"]);
 const LIVE_CONGESTION_SCORE: Record<string, number> = {
   "매우 붐빔": 5,
@@ -477,6 +478,20 @@ function calculateLatencyMinutes(observedAt: string | undefined) {
   return Math.max(0, Math.round((Date.now() - observedTimestamp) / 60000));
 }
 
+function formatLatencyLabel(minutes: number | null) {
+  if (minutes == null) {
+    return null;
+  }
+  if (minutes < 60) {
+    return `반영 시차 약 ${minutes}분`;
+  }
+  const hours = Math.floor(minutes / 60);
+  const remainMinutes = minutes % 60;
+  return remainMinutes > 0
+    ? `반영 시차 약 ${hours}시간 ${remainMinutes}분`
+    : `반영 시차 약 ${hours}시간`;
+}
+
 export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const simulationSource = useMemo(() => createLocalSimulationSource(), []);
@@ -523,6 +538,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   });
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMapFocusMode, setIsMapFocusMode] = useState(false);
+  const [isScenarioControlsExpanded, setIsScenarioControlsExpanded] = useState(false);
   const appliedTaxiCount = DEFAULT_TAXI_COUNT;
   // Keep the map focused on taxi operations until backend traffic markers land.
   const appliedTrafficCount = 0;
@@ -817,10 +833,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     forecastResult?.source === "demo"
       ? "border-amber-300/30 bg-amber-300/10 text-amber-200"
       : "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
-  const forecastResultTextClass =
-    forecastResult?.source === "demo"
-      ? "text-amber-300/85"
-      : "text-emerald-400/80";
   const forecastSourceTokenClass =
     forecastSource === "model"
       ? `${PANEL_TOKEN_CLASS} border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-200`
@@ -1144,6 +1156,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     || liveData?.fetchedAt
     || "";
   const liveLatencyMinutes = calculateLatencyMinutes(liveObservedAt || undefined);
+  const liveLatencyLabel = formatLatencyLabel(liveLatencyMinutes);
   const liveCoverageLabel = liveData
     ? `${liveData.meta.returnedPlaceCount}/${liveData.meta.expectedPlaceCount}개 반영`
     : null;
@@ -1170,6 +1183,44 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     const coverageLabel = liveCoverageLabel ?? "반영 수 확인 중";
     return [statusLabel, coverageLabel, observedLabel].filter(Boolean).join(" · ");
   })();
+  const liveInputTitle = liveData
+    ? liveData.isStale
+      ? "서울 citydata 스냅샷"
+      : liveData.meta.isPartial
+        ? "서울 citydata 부분 반영"
+        : "서울 공개데이터 실시간 입력"
+    : "서울 공개데이터 연결 준비";
+  const liveInputSummary = [
+    liveCoverageLabel,
+    liveObservedAt ? `최근 관측 ${formatKstDateTime(liveObservedAt)}` : null,
+    primaryLiveArea?.areaName ?? null,
+  ].filter((value): value is string => Boolean(value)).join(" · ");
+  const liveWeatherSummary = liveData
+    ? formatLiveWeather(
+      liveData.weather.tempC,
+      liveData.weather.precipitationType,
+    )
+    : selectedWeather.label;
+  const forecastSnapshotSummary = forecastSource === "model" && forecastResult
+    ? [
+      `예측 ${formatKstDateTime(forecastResult.target_datetime)}`,
+      forecastStrategyText,
+      isForecastSnapshotStale ? "저장 스냅샷" : forecastResultLabel,
+    ].filter((value): value is string => Boolean(value)).join(" · ")
+    : null;
+  const liveObservationLabel = liveObservedAt
+    ? `관측 기준 ${formatKstDateTime(liveObservedAt)}`
+    : null;
+  const liveMetaSummary = [
+    "출처 서울 citydata",
+    liveCoverageLabel ? `실시간 반영 ${liveCoverageLabel}` : null,
+    liveData?.meta.fetchedAt
+      ? `서버 수신 ${formatKstClock(liveData.meta.fetchedAt)}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
+  const liveLatencyBadgeClass = liveLatencyMinutes != null && liveLatencyMinutes >= 120
+    ? "border-amber-300/25 bg-amber-300/[0.08] text-amber-200"
+    : "border-white/10 bg-white/[0.05] text-slate-300";
   const topDemandDong = rankedForecastDongs[0] ?? null;
   const topDemandScoreLabel = topDemandDong
     ? Math.round(topDemandDong.relativeScore * 100)
@@ -1236,7 +1287,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                 강남 교통 운영
               </div>
               <div className="hidden truncate text-[11px] text-slate-400 sm:block">
-                택시 운영 중심 지도 · 일반 차량 시각화 숨김
+                서울 공개데이터 실시간 입력 기반 택시 운영 지도
               </div>
             </div>
           </div>
@@ -1578,19 +1629,16 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <p className={PANEL_EYEBROW_CLASS}>지도 기준</p>
-            <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-50">
-              {formattedSimulationTime}
+            <p className={PANEL_EYEBROW_CLASS}>실시간 입력</p>
+            <div className="mt-1 text-lg font-semibold text-slate-50">
+              {liveInputTitle}
             </div>
-            <div className="mt-1 text-xs text-slate-400">
-              {formattedSimulationDate} · {simulationTimeBand}
-            </div>
-            <div className="mt-1 text-[11px] text-cyan-100/80">
-              {MAP_SCOPE_LABEL}
+            <div className="mt-1 text-[11px] leading-5 text-slate-400">
+              {liveInputSummary || "강남권 주요 생활권과 날씨를 실시간으로 확인합니다."}
             </div>
           </div>
           <span className={panelBadgeClass(circumstanceMode === "live")}>
-            {circumstanceMode === "live" ? "실시간" : "고정"}
+            {circumstanceMode === "live" ? "자동 기준" : "고정 기준"}
           </span>
         </div>
 
@@ -1603,93 +1651,146 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
           </span>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          {circumstanceOptions.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              onClick={() => setCircumstanceMode(option.id)}
-              className={`rounded-xl border px-3 py-2 text-left text-xs transition ${panelSelectableClass(
-                circumstanceMode === option.id,
-              )}`}
-            >
-              {option.label}
-            </button>
-          ))}
+        <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+            <div className="text-slate-500">지도 시각</div>
+            <div className="mt-1 font-semibold tabular-nums text-slate-100">
+              {formattedSimulationTime}
+            </div>
+            <div className="mt-0.5 text-[10px] text-slate-500">
+              {formattedSimulationDate} · {simulationTimeBand}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+            <div className="text-slate-500">입력 날씨</div>
+            <div className="mt-1 font-semibold text-slate-100">
+              {liveWeatherSummary}
+            </div>
+            <div className="mt-0.5 text-[10px] text-slate-500">
+              {liveObservationLabel ?? "관측 기준 확인 중"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+            <div className="text-slate-500">기준 범위</div>
+            <div className="mt-1 font-semibold text-slate-100">
+              {MAP_SCOPE_LABEL}
+            </div>
+            <div className="mt-0.5 text-[10px] text-slate-500">
+              {primaryLiveArea?.areaName ?? "강남권 주요 생활권"}
+            </div>
+          </div>
+          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
+            <div className="text-slate-500">입력 상태</div>
+            <div className="mt-1 font-semibold text-slate-100">
+              {liveStatusLabel}
+            </div>
+            <div className="mt-0.5 text-[10px] text-slate-500">
+              {liveLatencyLabel ?? "반영 시차 확인 중"}
+            </div>
+          </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <label className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-            날짜
-            <input
-              type="date"
-              value={simulationDate}
-              onChange={(event) => {
-                setCircumstanceMode("specific");
-                setSimulationDate(event.target.value);
-              }}
-              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
-              aria-label="수요 지도 기준 날짜"
-            />
-          </label>
-          <label className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-            시간
-            <input
-              type="time"
-              step={300}
-              value={formattedSimulationTime}
-              onChange={(event) => {
-                const nextMinutes = parseTimeInput(event.target.value);
-                if (nextMinutes === null) {
-                  return;
-                }
-                setCircumstanceMode("specific");
-                setSimulationTimeMinutes(nextMinutes);
-              }}
-              className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
-              aria-label="수요 지도 기준 시간"
-            />
-          </label>
-        </div>
-
-        <label className="mt-3 block text-[10px] uppercase tracking-[0.14em] text-slate-500">
-          날씨 조건
-          <select
-            value={weatherMode}
-            onChange={(event) => {
-              setCircumstanceMode("specific");
-              setWeatherMode(event.target.value as WeatherMode);
-            }}
-            className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
-            aria-label="수요 지도 날씨 조건"
-          >
-            {WEATHER_OPTIONS.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <div className="mt-3 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.06] px-3 py-2 text-xs leading-5 text-slate-300">
-          {forecastSource === "model" ? (
-            <>
-              <span className={forecastResultTextClass}>
-                {isForecastSnapshotStale ? "저장 스냅샷" : forecastResultLabel}
-              </span> ·{" "}
-              {forecastStrategyText} ·{" "}
-              예측 시각 {formatKstClock(forecastResult?.target_datetime)} ·{" "}
-              {forecastResult?.weather}
-              {isForecastSnapshotStale ? " · 오래된 JSON 스냅샷" : ""}
+        {forecastSnapshotSummary ? (
+          <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-xs leading-5 text-slate-300">
+            <span className="font-medium text-amber-200">예측 값은 저장 스냅샷</span>
+            <div className="mt-1 text-[11px] text-slate-300">
+              {forecastSnapshotSummary}
+              {isForecastSnapshotStale ? " · 현재 기준 예측 아님" : ""}
               {isForecastLowConfidence ? " · 신뢰도 낮음" : ""}
-            </>
+            </div>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={() => setIsScenarioControlsExpanded((current) => !current)}
+          className="mt-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-left text-xs text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05]"
+          aria-expanded={isScenarioControlsExpanded}
+        >
+          <div>
+            <div className="font-semibold text-slate-100">시뮬레이션 조건</div>
+            <div className="mt-0.5 text-[10px] text-slate-500">
+              날짜, 시간, 날씨를 직접 고정할 때만 열어 주세요.
+            </div>
+          </div>
+          {isScenarioControlsExpanded ? (
+            <ChevronUp className="h-4 w-4 text-slate-400" aria-hidden />
           ) : (
-            <>
-              지도 조건: {formattedSimulationDate} {forecastTargetLabel} ·{" "}
-              {selectedForecast.label} · {selectedWeather.label}
-            </>
+            <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden />
           )}
-        </div>
+        </button>
+
+        {isScenarioControlsExpanded ? (
+          <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/72 p-3">
+            <div className="grid grid-cols-2 gap-2">
+              {circumstanceOptions.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => setCircumstanceMode(option.id)}
+                  className={`rounded-xl border px-3 py-2 text-left text-xs transition ${panelSelectableClass(
+                    circumstanceMode === option.id,
+                  )}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <label className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                날짜
+                <input
+                  type="date"
+                  value={simulationDate}
+                  onChange={(event) => {
+                    setCircumstanceMode("specific");
+                    setSimulationDate(event.target.value);
+                  }}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
+                  aria-label="수요 지도 기준 날짜"
+                />
+              </label>
+              <label className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                시간
+                <input
+                  type="time"
+                  step={300}
+                  value={formattedSimulationTime}
+                  onChange={(event) => {
+                    const nextMinutes = parseTimeInput(event.target.value);
+                    if (nextMinutes === null) {
+                      return;
+                    }
+                    setCircumstanceMode("specific");
+                    setSimulationTimeMinutes(nextMinutes);
+                  }}
+                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
+                  aria-label="수요 지도 기준 시간"
+                />
+              </label>
+            </div>
+
+            <label className="mt-3 block text-[10px] uppercase tracking-[0.14em] text-slate-500">
+              날씨 조건
+              <select
+                value={weatherMode}
+                onChange={(event) => {
+                  setCircumstanceMode("specific");
+                  setWeatherMode(event.target.value as WeatherMode);
+                }}
+                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
+                aria-label="수요 지도 날씨 조건"
+              >
+                {WEATHER_OPTIONS.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        ) : null}
       </div>
 
       {isSidebarVisible ? (
@@ -1708,12 +1809,12 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
         >
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className={PANEL_EYEBROW_CLASS}>수요 예측</p>
+            <p className={PANEL_EYEBROW_CLASS}>운영 인사이트</p>
             <h2 className="mt-1 text-xl font-semibold leading-tight text-slate-50">
-              역삼동 주변 수요 지도
+              역삼권 수요 패널
             </h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              {MAP_SCOPE_DONGS}
+              실시간 공개데이터를 먼저 보고, 예측 스냅샷은 보조로 확인합니다.
             </p>
           </div>
           <span
@@ -1727,29 +1828,15 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
           </span>
         </div>
 
-        {forecastSource === "model" && forecastResult && (
-          <div className="mt-2 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.05] px-3 py-2 text-[11px] leading-5 text-slate-400">
-            <span className={forecastResultTextClass}>
-              {isForecastSnapshotStale ? "저장 스냅샷" : "대상"}
-            </span>{" "}
-            {formatKstDateTime(forecastResult.target_datetime)} ·{" "}
-            {forecastStrategyText} · {forecastResult.weather}
-            {isForecastSnapshotStale ? " · 현재 기준 예측 아님" : ""}
-            {forecastAverageConfidence != null ? (
-              <> · 평균 신뢰도 {Math.round(forecastAverageConfidence * 100)}%</>
-            ) : null}{" "}
-            <span className="text-slate-500">
-              {formatKstDateTime(forecastResult.generated_at)} 생성
-            </span>
-          </div>
-        )}
-
         <div className={`mt-3 ${PANEL_CARD_CLASS}`}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className={PANEL_SECTION_LABEL_CLASS}>실시간 상황</div>
+              <div className={PANEL_SECTION_LABEL_CLASS}>실시간 공개데이터</div>
               <div className="mt-1 text-sm font-semibold text-slate-100">
                 {primaryLiveArea?.areaName ?? "서울 citydata 확인 중"}
+              </div>
+              <div className="mt-0.5 text-[11px] leading-5 text-slate-500">
+                {liveObservationLabel ?? "관측 기준 시각을 확인하는 중입니다."}
               </div>
             </div>
             <span
@@ -1803,36 +1890,25 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                 ))}
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-5 text-slate-500">
-                <span className="flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  서울 citydata
-                </span>
-                <span>·</span>
-                <span>{liveData.snapshotLabel}</span>
-                {liveCoverageLabel ? (
-                  <>
-                    <span>·</span>
-                    <span
-                      title={liveCoverageTitle}
-                      className={`rounded-full border px-2 py-0.5 ${
-                        liveData.meta.isPartial
-                          ? "border-amber-300/25 bg-amber-300/[0.08] text-amber-200"
-                          : "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-300"
-                      }`}
-                    >
-                      실시간 반영 {liveCoverageLabel}
-                    </span>
-                  </>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] leading-5 text-slate-500">
+                {liveMetaSummary.map((item) => (
+                  <span
+                    key={item}
+                    title={item.includes("실시간 반영") ? liveCoverageTitle : undefined}
+                    className="rounded-full border border-white/10 bg-white/[0.035] px-2 py-0.5"
+                  >
+                    {item}
+                  </span>
+                ))}
+                {liveLatencyLabel ? (
+                  <span className={`rounded-full border px-2 py-0.5 ${liveLatencyBadgeClass}`}>
+                    {liveLatencyLabel}
+                  </span>
                 ) : null}
-                {liveLatencyMinutes != null ? (
-                  <>
-                    <span>·</span>
-                    <span className="rounded-full border border-rose-400/20 bg-rose-400/10 px-2 py-0.5 text-rose-300">
-                      데이터 지연 {Math.floor(liveLatencyMinutes / 60)}시간 {liveLatencyMinutes % 60}분
-                    </span>
-                  </>
-                ) : null}
+              </div>
+
+              <div className="mt-2 text-[11px] leading-5 text-slate-500">
+                공개데이터 특성상 1~2시간 반영 시차가 있을 수 있습니다.
               </div>
             </>
           ) : (
@@ -1842,6 +1918,23 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
             </div>
           )}
         </div>
+
+        {forecastSource === "model" && forecastResult ? (
+          <div className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2 text-[11px] leading-5 text-slate-400">
+            <span className="font-medium text-amber-200">
+              저장된 예측 스냅샷
+            </span>{" "}
+            {formatKstDateTime(forecastResult.target_datetime)} ·{" "}
+            {forecastStrategyText} · {forecastResult.weather}
+            {isForecastSnapshotStale ? " · 현재 기준 예측 아님" : ""}
+            {forecastAverageConfidence != null ? (
+              <> · 평균 신뢰도 {Math.round(forecastAverageConfidence * 100)}%</>
+            ) : null}{" "}
+            <span className="text-slate-500">
+              {formatKstDateTime(forecastResult.generated_at)} 생성
+            </span>
+          </div>
+        ) : null}
 
         {selectedPoi ? (
           <div
