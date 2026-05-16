@@ -15,6 +15,7 @@ const CITYDATA_POIS = (poiConfig.citydata_collection as PoiConfigEntry[])
   .filter((poi) => poi.collection_enabled !== false && poi.code);
 const POI_BY_CODE = new Map(CITYDATA_POIS.map((poi) => [poi.code, poi]));
 const POI_CODES = CITYDATA_POIS.map((poi) => poi.code);
+const REALTIME_CACHE_TTL_MS = 2 * 60 * 1000;
 
 type JsonRecord = Record<string, unknown>;
 type PoiRealtimePlace = {
@@ -54,6 +55,27 @@ type PoiRealtimePlace = {
 type PoiFetchResult =
   | { ok: true; code: string; place: PoiRealtimePlace }
   | { ok: false; code: string; reason: string; status?: number };
+
+type RealtimeResponseBody = {
+  meta: {
+    source: string;
+    fetched_at: string;
+    served_at?: string;
+    cache_status?: "miss" | "hit" | "stale-if-error";
+    cache_ttl_seconds?: number;
+    expected_count: number;
+    returned_count: number;
+    requested_codes: string[];
+    returned_codes: string[];
+    failed_codes: string[];
+    failed_items: { code: string; reason: string; status: number | null }[];
+    partial_failure: boolean;
+  };
+  places: PoiRealtimePlace[];
+};
+
+let cachedRealtimeBody: RealtimeResponseBody | null = null;
+let cachedRealtimeAt = 0;
 
 function asRecord(value: unknown): JsonRecord | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -177,9 +199,34 @@ async function fetchPoi(apiKey: string, code: string): Promise<PoiFetchResult> {
   }
 }
 
+function withCacheMeta(
+  body: RealtimeResponseBody,
+  cacheStatus: "miss" | "hit" | "stale-if-error",
+): RealtimeResponseBody {
+  return {
+    ...body,
+    meta: {
+      ...body.meta,
+      served_at: new Date().toISOString(),
+      cache_status: cacheStatus,
+      cache_ttl_seconds: REALTIME_CACHE_TTL_MS / 1000,
+    },
+  };
+}
+
 export async function GET() {
+  if (
+    cachedRealtimeBody &&
+    Date.now() - cachedRealtimeAt < REALTIME_CACHE_TTL_MS
+  ) {
+    return Response.json(withCacheMeta(cachedRealtimeBody, "hit"));
+  }
+
   const apiKey = process.env.SEOUL_OPEN_API_KEY;
   if (!apiKey) {
+    if (cachedRealtimeBody) {
+      return Response.json(withCacheMeta(cachedRealtimeBody, "stale-if-error"));
+    }
     return Response.json({ error: "SEOUL_OPEN_API_KEY not configured" }, { status: 503 });
   }
 
@@ -214,7 +261,7 @@ export async function GET() {
     return [{ code: "unknown", reason: "promise_rejected", status: null }];
   });
 
-  return Response.json({
+  const responseBody: RealtimeResponseBody = {
     meta: {
       source: "citydata (OA-21285)",
       fetched_at: new Date().toISOString(),
@@ -227,5 +274,17 @@ export async function GET() {
       partial_failure: failedItems.length > 0,
     },
     places,
-  });
+  };
+
+  if (places.length) {
+    cachedRealtimeBody = responseBody;
+    cachedRealtimeAt = Date.now();
+    return Response.json(withCacheMeta(responseBody, "miss"));
+  }
+
+  if (cachedRealtimeBody) {
+    return Response.json(withCacheMeta(cachedRealtimeBody, "stale-if-error"));
+  }
+
+  return Response.json(responseBody, { status: 502 });
 }

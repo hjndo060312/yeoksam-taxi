@@ -91,26 +91,6 @@ export type SignalPhase =
   | "ped_flash"
   | "clearance";
 
-export type TrafficForecastRegion = {
-  dong_name: string;
-  predicted_traffic_volume_proxy: number;
-  predicted_traffic_volume_score: number;
-  predicted_congestion_score: number;
-  predicted_avg_speed_kmh: number;
-  current_congestion_score: number | null;
-  current_avg_speed_kmh: number | null;
-  current_link_count: number | null;
-};
-
-export type TrafficForecastStatus = {
-  generated_at: string | null;
-  target_datetime: string | null;
-  feature_datetime: string | null;
-  model_target: string;
-  note: string;
-  regions: TrafficForecastRegion[];
-};
-
 export type RoadProperties = {
   roadClass: "arterial" | "connector" | "local";
   width: number;
@@ -511,7 +491,6 @@ export type SimulationData = {
   roadNetwork: SerializedRoadNetwork | null;
   graph: RoadGraph;
   signals: SignalData[];
-  trafficForecast: TrafficForecastStatus | null;
   loopRoutes: RouteTemplate[];
   taxiRoutePool: RouteTemplate[];
   trafficRoutePool: RouteTemplate[];

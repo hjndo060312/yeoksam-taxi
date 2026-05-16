@@ -236,6 +236,14 @@ type MapPoiFeatureRow = {
   forecast_population_delta: number | null;
 };
 
+function districtSignalScore(rows: MapPoiFeatureRow[]) {
+  if (!rows.length) {
+    return 0;
+  }
+  const total = rows.reduce((sum, row) => sum + (row.poi_pressure_score ?? 0), 0);
+  return total / rows.length;
+}
+
 function poiMarkerColor(score: number | null | undefined) {
   const normalized = score ?? 0;
   if (normalized >= 0.72) return "#fb7185";
@@ -2298,13 +2306,19 @@ export default function MapSimulatorSceneRuntime({
     applyRenderBudget(activeCameraMode);
     syncCamera();
 
-    const forecastByDong = new globalThis.Map(
-      data.trafficForecast?.regions.map((r) => [r.dong_name, r]) ?? [],
-    );
+    const livePoiByDong = new globalThis.Map<string, MapPoiFeatureRow[]>();
+    poiFeatureRows.forEach((poi) => {
+      if (!poi.coverage_dong) {
+        return;
+      }
+      const rows = livePoiByDong.get(poi.coverage_dong) ?? [];
+      rows.push(poi);
+      livePoiByDong.set(poi.coverage_dong, rows);
+    });
 
     dongRegions.forEach((dong) => {
-      const forecast = forecastByDong.get(dong.name);
-      const congestionScore = forecast?.predicted_congestion_score ?? 0;
+      const liveRows = livePoiByDong.get(dong.name) ?? [];
+      const congestionScore = districtSignalScore(liveRows);
       const status =
         congestionScore > 0.7
           ? "혼잡"
@@ -2319,7 +2333,7 @@ export default function MapSimulatorSceneRuntime({
             : "text-emerald-600 bg-emerald-50 border-emerald-100";
 
       const el = labelElement(dong.name, "district");
-      if (forecast) {
+      if (liveRows.length) {
         const badge = document.createElement("span");
         badge.className = `ml-2 px-1.5 py-0.5 rounded-md border text-[10px] font-black ${statusColor}`;
         badge.innerText = status;

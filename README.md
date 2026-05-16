@@ -16,7 +16,7 @@ product rather than the experimentation pipeline.
 ## What Stays In Repo
 
 - `src/`: Next.js app, map UI, realtime API routes, and Three.js scene
-- `public/`: OSM geometry, small runtime snapshots, taxi stands
+- `public/`: OSM geometry, a small fallback forecast snapshot, taxi stands
 - `scripts/osm/`: regenerate local OSM-derived geometry
 - `module4_dispatch/`: optional local dispatch-plan generator for the demo
 - `data/config/`: small committed config such as Gangnam POI targets
@@ -74,12 +74,8 @@ That refreshes:
 
 ## Runtime Data Policy
 
-The site keeps small public JSON snapshots checked in because some upstream
-data sources are not reliable enough to rebuild from GitHub Actions alone.
-
-The app can still call live endpoints at runtime where appropriate, but the
-remote repository itself only keeps the small artifacts required to render the
-map and its current side panels.
+The app primarily calls live endpoints at runtime. Only a very small fallback
+JSON snapshot is kept for cases where a backend forecast feed is not available.
 
 ## Available Scripts
 
