@@ -14,62 +14,62 @@
     "holiday_names": ""
   },
   "weather": "clear",
-  "generated_at": "2026-05-16T10:05:29+0900",
+  "generated_at": "2026-05-16T10:49:38+0900",
   "model_target": "target_inbound_boardings_per_1k_pop_t_plus_1h",
   "regions": [
     {
       "dong_name": "논현1동",
       "score": 1.0,
       "confidence": 0.58,
-      "raw_prediction": 91.419149
+      "raw_prediction": 91.421317
     },
     {
       "dong_name": "삼성1동",
-      "score": 0.6759,
+      "score": 0.6717,
       "confidence": 0.58,
-      "raw_prediction": 65.125119
+      "raw_prediction": 64.799453
     },
     {
       "dong_name": "역삼1동",
-      "score": 0.6132,
+      "score": 0.6106,
       "confidence": 0.58,
-      "raw_prediction": 60.040613
+      "raw_prediction": 59.846104
     },
     {
       "dong_name": "대치4동",
-      "score": 0.6031,
+      "score": 0.5997,
       "confidence": 0.58,
-      "raw_prediction": 59.218584
+      "raw_prediction": 58.960199
     },
     {
       "dong_name": "논현2동",
-      "score": 0.5776,
+      "score": 0.575,
       "confidence": 0.58,
-      "raw_prediction": 57.145523
+      "raw_prediction": 56.954029
     },
     {
       "dong_name": "삼성2동",
-      "score": 0.2952,
+      "score": 0.2953,
       "confidence": 0.58,
-      "raw_prediction": 34.236194
+      "raw_prediction": 34.277131
     },
     {
       "dong_name": "청담동",
-      "score": 0.0687,
+      "score": 0.0678,
       "confidence": 0.58,
-      "raw_prediction": 15.860965
+      "raw_prediction": 15.825012
     },
     {
       "dong_name": "신사동",
-      "score": 0.0191,
+      "score": 0.0192,
       "confidence": 0.58,
-      "raw_prediction": 11.83444
+      "raw_prediction": 11.88218
     },
     {
       "dong_name": "역삼2동",
       "score": 0.0,
       "confidence": 0.58,
-      "raw_prediction": 10.286009
+      "raw_prediction": 10.326945
     }
   ]
 }
