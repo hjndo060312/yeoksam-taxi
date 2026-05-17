@@ -1,8 +1,8 @@
 {
   "source": "seoul_citydata_poi_population_forecast_proxy_v1",
-  "generated_at": "2026-05-17T19:35:01.112Z",
-  "input_generated_at": "2026-05-17T19:34:57.769Z",
-  "target_datetime": "2026-05-18 05:00",
+  "generated_at": "2026-05-17T20:26:06.645Z",
+  "input_generated_at": "2026-05-17T20:26:03.619Z",
+  "target_datetime": "2026-05-18 06:00",
   "interpretation": "서울 실시간 도시데이터 POI의 현재 인구와 1시간 예측 인구를 행정동 coverage로 집계한 생활/유동인구 pressure proxy입니다. 행정동 전체 생활인구 확정값이나 택시 호출량 라벨은 아닙니다.",
   "coverage": {
     "live_poi_count": 7,
@@ -14,7 +14,7 @@
     "completed_count": 0,
     "waiting_count": 1,
     "latest_kind": "waiting",
-    "latest_target_datetime": "2026-05-17T20:00:00.000Z",
+    "latest_target_datetime": "2026-05-17T21:00:00.000Z",
     "population_mae": null,
     "population_mape_pct": null,
     "congestion_level_accuracy_pct": null,
@@ -29,13 +29,13 @@
     "forecast_population_mid_sum": 64500,
     "avg_current_congestion_score": 0.2,
     "avg_forecast_congestion_score": 0.2,
-    "avg_poi_pressure_score": 0.2374
+    "avg_poi_pressure_score": 0.2279
   },
   "dongs": [
     {
       "dong_name": "삼성2동",
       "poi_count": 1,
-      "target_datetime": "2026-05-18 05:00",
+      "target_datetime": "2026-05-18 06:00",
       "current_population_mid_sum": 17000,
       "forecast_population_mid_sum": 17000,
       "forecast_population_delta": 0,
@@ -55,7 +55,7 @@
     {
       "dong_name": "역삼1동",
       "poi_count": 2,
-      "target_datetime": "2026-05-18 05:00",
+      "target_datetime": "2026-05-18 06:00",
       "current_population_mid_sum": 30000,
       "forecast_population_mid_sum": 30000,
       "forecast_population_delta": 0,
@@ -75,7 +75,7 @@
     {
       "dong_name": "신사동",
       "poi_count": 1,
-      "target_datetime": "2026-05-18 05:00",
+      "target_datetime": "2026-05-18 06:00",
       "current_population_mid_sum": 9250,
       "forecast_population_mid_sum": 9250,
       "forecast_population_delta": 0,
@@ -93,29 +93,9 @@
       }
     },
     {
-      "dong_name": "논현1동",
-      "poi_count": 1,
-      "target_datetime": "2026-05-18 05:00",
-      "current_population_mid_sum": 4750,
-      "forecast_population_mid_sum": 4750,
-      "forecast_population_delta": 0,
-      "forecast_population_delta_pct": 0,
-      "avg_current_congestion_score": 0.2,
-      "avg_forecast_congestion_score": 0.2,
-      "avg_poi_pressure_score": 0.198,
-      "avg_demand_proxy_score": 0.198,
-      "top_poi": {
-        "poi_code": "POI037",
-        "poi_name": "신논현역·논현역",
-        "current_population_mid": 4750,
-        "forecast_population_mid": 4750,
-        "poi_pressure_score": 0.198
-      }
-    },
-    {
       "dong_name": "삼성1동",
       "poi_count": 1,
-      "target_datetime": "2026-05-18 05:00",
+      "target_datetime": "2026-05-18 06:00",
       "current_population_mid_sum": 2250,
       "forecast_population_mid_sum": 2250,
       "forecast_population_delta": 0,
@@ -133,11 +113,11 @@
       }
     },
     {
-      "dong_name": "청담동",
+      "dong_name": "논현1동",
       "poi_count": 1,
-      "target_datetime": "2026-05-18 05:00",
-      "current_population_mid_sum": 1250,
-      "forecast_population_mid_sum": 1250,
+      "target_datetime": "2026-05-18 06:00",
+      "current_population_mid_sum": 4750,
+      "forecast_population_mid_sum": 4750,
       "forecast_population_delta": 0,
       "forecast_population_delta_pct": 0,
       "avg_current_congestion_score": 0.2,
@@ -145,11 +125,31 @@
       "avg_poi_pressure_score": 0.165,
       "avg_demand_proxy_score": 0.15,
       "top_poi": {
+        "poi_code": "POI037",
+        "poi_name": "신논현역·논현역",
+        "current_population_mid": 4750,
+        "forecast_population_mid": 4750,
+        "poi_pressure_score": 0.165
+      }
+    },
+    {
+      "dong_name": "청담동",
+      "poi_count": 1,
+      "target_datetime": "2026-05-18 06:00",
+      "current_population_mid_sum": 1250,
+      "forecast_population_mid_sum": 1250,
+      "forecast_population_delta": 0,
+      "forecast_population_delta_pct": 0,
+      "avg_current_congestion_score": 0.2,
+      "avg_forecast_congestion_score": 0.2,
+      "avg_poi_pressure_score": 0.131,
+      "avg_demand_proxy_score": 0.102,
+      "top_poi": {
         "poi_code": "POI080",
         "poi_name": "청담동 명품거리",
         "current_population_mid": 1250,
         "forecast_population_mid": 1250,
-        "poi_pressure_score": 0.165
+        "poi_pressure_score": 0.131
       }
     }
   ],
@@ -207,7 +207,7 @@
       "forecast_population_delta": 0,
       "current_congestion_level": "여유",
       "forecast_congestion_level": "여유",
-      "poi_pressure_score": 0.198
+      "poi_pressure_score": 0.165
     }
   ]
 }
