@@ -1,34 +1,25 @@
 {
-  "generated_at": "2026-05-18T05:35:21.775Z",
+  "generated_at": "2026-05-18T07:44:03.306Z",
   "source_log_path": "data/processed/live_validation/live_forecast_log.jsonl",
   "traffic_source_dir": "data/raw/traffic",
   "status": "waiting_for_observation",
   "note": "Live comparison pairs saved demand-proxy forecasts with road congestion observed by Seoul citydata after the forecast target time. Public transit/taxi-call demand labels are separate and may arrive later.",
   "match_window_minutes": 90,
-  "log_count": 257,
+  "log_count": 258,
   "completed_count": 0,
-  "waiting_count": 257,
+  "waiting_count": 258,
   "latest": {
     "kind": "waiting",
-    "generated_at": "2026-05-18T14:35:21+09:00",
-    "target_datetime": "2026-05-18T15:00:00+09:00",
-    "feature_datetime": "2026-05-18T14:00:00+09:00",
+    "generated_at": "2026-05-18T16:44:03+09:00",
+    "target_datetime": "2026-05-18T17:00:00+09:00",
+    "feature_datetime": "2026-05-18T16:00:00+09:00",
     "strategy": "pattern",
-    "top_forecast_dong": "대치4동",
+    "top_forecast_dong": "논현1동",
     "top_forecast_score": 1,
     "status": "waiting_for_target_time"
   },
   "completed": [],
   "waiting": [
-    {
-      "generated_at": "2026-05-17T16:12:43+09:00",
-      "target_datetime": "2026-05-17T17:00:00+09:00",
-      "feature_datetime": "2026-05-17T16:00:00+09:00",
-      "strategy": "pattern",
-      "top_forecast_dong": "논현1동",
-      "top_forecast_score": 1,
-      "status": "waiting_for_observed_snapshot"
-    },
     {
       "generated_at": "2026-05-17T17:53:41+09:00",
       "target_datetime": "2026-05-17T18:00:00+09:00",
@@ -197,6 +188,15 @@
       "feature_datetime": "2026-05-18T14:00:00+09:00",
       "strategy": "pattern",
       "top_forecast_dong": "대치4동",
+      "top_forecast_score": 1,
+      "status": "waiting_for_observed_snapshot"
+    },
+    {
+      "generated_at": "2026-05-18T16:44:03+09:00",
+      "target_datetime": "2026-05-18T17:00:00+09:00",
+      "feature_datetime": "2026-05-18T16:00:00+09:00",
+      "strategy": "pattern",
+      "top_forecast_dong": "논현1동",
       "top_forecast_score": 1,
       "status": "waiting_for_target_time"
     }
