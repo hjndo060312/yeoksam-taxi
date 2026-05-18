@@ -5,9 +5,9 @@ This repository keeps only lightweight runtime-facing data.
 ## Runtime Inputs Still Committed
 
 - `data/config/gangnam-pois.json`
-  - POI codes used by the realtime citydata route
+  - static POI registry used by the map and demand-context panels
 - `data/samples/supply-proxy.json`
-  - small demo supply input for the optional dispatch-plan script
+  - small demo supply reference for scenario fallback and validation notes
 - `public/*.geojson`, `public/*.json`
   - checked-in map geometry and presentation-safe snapshot artifacts
 
@@ -19,7 +19,7 @@ This repository keeps only lightweight runtime-facing data.
   - POI-level public snapshots used for live context
 - Seoul taxi stand open data
   - converted and committed as `public/taxi-stands.geojson`
-- small forecast / dispatch / observability snapshots
+- small forecast and observability snapshots
   - committed as runtime-facing JSON under `public/`
 
 ## Off-Repo By Policy

@@ -6,7 +6,7 @@ Goal:
 
 - keep the current map/dong-based simulator moving with public data first
 - avoid waiting for a perfect taxi raw feed
-- make later dispatch-data insertion easy
+- make later demand-data insertion easy
 
 ## 1. What To Collect First
 
@@ -127,7 +127,7 @@ This one key is the most important key for this project.
 - Page: https://data.seoul.go.kr/dataList/OA-21226/F/1/datasetView.do
 - Why we want it:
   - gives actual dong-to-dong directional movement
-  - very useful later for dispatch repositioning logic
+  - very useful later for demand movement logic
 - Access type:
   - `File` download
 - Important notes from the page:
@@ -504,7 +504,7 @@ Result:
 
 Result:
 
-- dispatch repositioning and demand-shift logic can become smarter
+- demand-shift logic can become smarter
 
 ### Phase 4
 
@@ -513,7 +513,7 @@ Result:
 
 Result:
 
-- lane/road-level dispatch research becomes much more realistic
+- lane/road-level operations research becomes much more realistic
 
 ## 7. Suggested Feature Table
 
@@ -592,7 +592,7 @@ After that, I can move straight to:
 1. fetch script scaffolding
 2. raw snapshot download
 3. normalization into a dong-hour table
-4. wiring that table back into the simulator / dispatch planner
+4. wiring that table back into the simulator and demand visualization layer
 ## 9. Bottom Line
 
 Your finding is normal:

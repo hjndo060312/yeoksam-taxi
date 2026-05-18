@@ -32,7 +32,7 @@
 | Layer | Local file | POI 분석에서의 역할 |
 | --- | --- | --- |
 | 행정동 경계 | `public/dongs.geojson` | 모든 집계와 지도 색상의 기준 단위 |
-| 도로 | `public/roads.geojson`, `public/road-network.json` | 접근성, 도로량, 배차 coverability proxy |
+| 도로 | `public/roads.geojson`, `public/road-network.json` | 접근성, 도로량, 이동 coverability proxy |
 | 건물 | `public/buildings.geojson` | 건물 밀도, 고층/업무지 성격, 상업/주거 proxy |
 | 대중교통 | `public/transit.geojson` | 역/정류장 접근성, transit hub score |
 | 신호/비도로 | `public/traffic-signals.geojson`, `public/non-road.geojson` | 도로 복잡도, 녹지/비도로 성격 보조 |
@@ -171,7 +171,7 @@
 이번 범위에서 제외한다.
 
 - 실제 택시 호출량/GPS/기사 수락률 기반 모델
-- 운영급 배차 최적화 또는 인센티브 학습
+- 운영급 택시 최적화 또는 인센티브 학습
 - 9개 target dong 밖 POI의 직접 귀속
 - bus/subway 임의 합산을 source total처럼 취급
 - supervised land-use classifier 학습

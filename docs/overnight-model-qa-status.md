@@ -90,12 +90,12 @@ proxy forecasts, not direct call-volume predictions.
 - Latest POI congestion-level hit rate: 57.1%
 - Latest POI top predicted/observed: 강남역 / 강남역
 
-## Dispatch Effect Proxy
+## Demand Pressure Effect Proxy
 
 - Method: proxy_counterfactual_v1
-- Intervention areas: 2
+- Focus areas: 2
 - Monitoring units: 6
-- Max incentive multiplier: 1.2
+- Max scenario multiplier: 1.2
 - Positive imbalance before: 1.112
 - Estimated positive imbalance after: 0.492
 - Estimated relief score: 0.62

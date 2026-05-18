@@ -19,7 +19,6 @@
     "fetch:traffic-signals": "node scripts/osm/fetch-traffic-signals.mjs",
     "fetch:transit": "node scripts/osm/fetch-transit.mjs",
     "fetch:map": "npm run asset:update",
-    "dispatch:plan": "node module4_dispatch/run_dispatch_policy.mjs",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
     "upload": "opennextjs-cloudflare build && opennextjs-cloudflare upload",

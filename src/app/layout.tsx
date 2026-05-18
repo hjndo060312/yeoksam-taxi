@@ -14,11 +14,11 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "역삼권 실시간 교통 운영 지도",
+    default: "역삼권 택시 운영 시뮬레이터",
     template: "%s",
   },
   description:
-    "강남·역삼권 9개 행정동 실시간 교통·혼잡 운영 지도 — 서울 공개데이터 기반 택시 운영 디지털 트윈",
+    "강남·역삼권 9개 행정동의 정적 지도 자산과 번들 시나리오 기반 택시 운영 디지털 트윈",
 };
 
 export default function RootLayout({

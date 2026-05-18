@@ -1,6 +1,6 @@
 # A-Eye Module 1 Alignment
 
-This note keeps the story clean: the dispatch baseline stays in SUMO, and this repo carries the spatial layer that makes the story look and feel real.
+This note keeps the story clean: the SUMO baseline stays separate, and this repo carries the spatial layer that makes the story look and feel real.
 
 ## Why This Repo Exists
 
@@ -8,10 +8,10 @@ This note keeps the story clean: the dispatch baseline stays in SUMO, and this r
 
 - `Yeoksam 3x3 micro area`
 - `5-minute synthetic demand`
-- `rule-based dispatch`
+- `rule-based vehicle circulation`
 - `before / after SUMO export`
 
-That baseline remains the main evaluation path for dispatch comparison.
+That baseline remains the main evaluation path for scenario comparison.
 
 **This repo's role:** a spatial companion to the baseline.
 
@@ -30,11 +30,11 @@ Using 9 real administrative dongs is a better fit for this viewer because it:
 - makes road, building, signal, and curbside context easier to explain
 - gives a natural target for later dong-level CSV features
 
-The simplified `3x3` layout is still useful for compact dispatch comparison and zone-level modeling.
+The simplified `3x3` layout is still useful for compact scenario comparison and zone-level modeling.
 
 **Complementary layers:**
 
-- `3x3`: simplified dispatch-evaluation layer
+- `3x3`: simplified scenario-evaluation layer
 - `9 dongs`: spatial digital-twin layer
 
 ## Why OSM Matters In This Context
@@ -72,7 +72,7 @@ That is enough to support a micro-area digital-twin presentation layer.
 
 - full Gangnam digital twin
 - full Seoul traffic replication
-- dispatch-grade legal curbside or lane-rule authority
+- operation-grade legal curbside or lane-rule authority
 - replacement of the active SUMO baseline
 
 ## Practical Integration Rule
@@ -82,4 +82,4 @@ That is enough to support a micro-area digital-twin presentation layer.
 - keep `A-Eye` baseline evaluation on the existing simplified SUMO path
 - keep this repo focused on realistic spatial presentation and road-level behavior
 - keep local viewer validation simple, using scene-side presets and proxy metrics before adding external feeds
-- add future demand/dispatch overlays in a way that can still aggregate back to simpler project zones when needed
+- add future demand overlays in a way that can still aggregate back to simpler project zones when needed

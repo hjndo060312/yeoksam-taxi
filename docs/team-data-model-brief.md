@@ -224,7 +224,7 @@ Colab 결과 기준 상위 feature는 다음과 같습니다.
 docs/feature-importance-interpretation.md
 ```
 
-## 11. 지도/배차로 연결하는 방식
+## 11. 지도/그래프로 연결하는 방식
 
 모델은 각 동에 대해 다음과 같은 값을 만들 수 있습니다.
 
@@ -233,7 +233,7 @@ docs/feature-importance-interpretation.md
 - `raw_prediction`: 모델이 예측한 원래 값
 - `confidence`: 데이터 결측 여부를 반영한 신뢰도
 
-이 값은 지도에서 동별 색상/수요 heatmap으로 표시하거나, 배차 로직에서 “수요가 높은 동으로 차량을 재배치”하는 입력으로 쓸 수 있습니다.
+이 값은 지도에서 동별 색상, 수요 heatmap, 우측 패널의 시간대별 추세 그래프로 표시할 수 있습니다.
 
 ## 12. 발표/팀 설명용 문장
 
@@ -243,7 +243,7 @@ docs/feature-importance-interpretation.md
 
 > 모델은 scikit-learn의 HistGradientBoostingRegressor를 사용했고, 2023~2024년 데이터로 학습한 뒤 2025년 데이터를 시간 기준으로 분리해 평가했습니다.
 
-> 최종 결과는 동별 수요 점수 JSON으로 변환해 지도 시각화와 향후 배차 정책의 입력으로 사용할 수 있습니다.
+> 최종 결과는 동별 수요 점수 JSON으로 변환해 지도 시각화와 시간대별 수요 그래프의 입력으로 사용할 수 있습니다.
 
 피해야 할 표현:
 

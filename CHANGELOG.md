@@ -4,7 +4,7 @@
 
 ### Changed
 - Reworked the map shell so `/` delegates the operator header/navigation to the map client, keeping the 3D scene layout simpler and avoiding duplicated overlays.
-- Added Seoul citydata partial-failure metadata to `/api/realtime`, including requested/returned/failed POI codes, normalized KST timestamps, and per-POI fetch failure reasons.
+- Added Seoul citydata partial-failure metadata during the earlier realtime-data prototype, including requested/returned/failed POI codes, normalized KST timestamps, and per-POI fetch failure reasons.
 - Surfaced live-data coverage and latency in the map sidebar so stale or partial citydata snapshots are visible instead of being presented as fully fresh data.
 - Added selectable citydata POI pressure points to the demand minimap; selecting a POI opens the detail panel and moves the 3D camera toward that field location.
 - Refined the 3D POI marker styling with clearer pressure labels, taller pins, and animated pressure pulses for better readability in the dense map scene.
@@ -43,7 +43,6 @@
 - Skipped signal, hotspot, pedestrian, and vehicle simulation work when their respective layers are empty so idle scenes spend less CPU while staying stable.
 
 ### Documented
-- Added a dispatch road-network review that explains what the current OSM-derived routing graph already supports, where it is useful for prototype dispatch, and which dispatch-grade road constraints are still missing.
 - Added an `A-Eye` alignment note that explains why the viewer uses 9 real dongs, how that complements the active 3x3 SUMO baseline, and why OSM is the right geometry backbone for this scope.
 - Documented the new local-only scenario/preset workflow so this viewer stays easy to demonstrate before external data overlays are introduced.
 - Documented the local scenario screenshot capture commands and generated output naming.

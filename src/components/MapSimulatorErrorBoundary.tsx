@@ -42,7 +42,7 @@ export class MapSimulatorErrorBoundary extends Component<Props, State> {
           </div>
           <p className="max-w-md text-sm text-slate-400">
             {this.props.fallbackDetail ??
-              "잘못된 좌표 또는 렌더링 예외가 감지되어 캔버스를 격리했습니다. 다시 시도하거나 실시간 데이터 연결 상태를 확인하세요."}
+              "잘못된 좌표 또는 렌더링 예외가 감지되어 캔버스를 격리했습니다. 다시 시도하거나 지도 자산 상태를 확인하세요."}
           </p>
         </div>
         <button

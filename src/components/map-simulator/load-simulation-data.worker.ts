@@ -1,7 +1,6 @@
 import { formatKstDateTime } from "@/components/map-simulator/simulation-environment";
 import { SHOW_DONG_BOUNDARIES } from "@/components/map-simulator/scene-constants";
 import {
-  ACTIVE_DISPATCH_PLANNER_ID,
   DEFAULT_MAP_CENTER,
   EMPTY_NON_ROAD_FEATURE_COLLECTION,
   EMPTY_TAXI_STAND_FEATURE_COLLECTION,
@@ -240,7 +239,7 @@ async function loadSimulationData() {
   const hotspotPool =
     taxiStandHotspotPool.length > 0 ? taxiStandHotspotPool : fallbackHotspotPool;
   if (!hotspotPool.length) {
-    throw new Error("No dispatch hotspots available for taxi simulation");
+    throw new Error("No taxi hotspots available for taxi simulation");
   }
 
   const simulationData: SimulationData = {
@@ -266,12 +265,11 @@ async function loadSimulationData() {
     taxiRoutePool,
     trafficRoutePool,
     hotspotPool,
-    meta: {
-      source:
-        "A-Eye Module 1 companion: OpenStreetMap + Overpass -> public/*.geojson + public/road-network.json",
-      boundarySource: "OSM administrative relations (admin_level=8)",
-      dispatchPlannerId: ACTIVE_DISPATCH_PLANNER_ID,
-      latestAssetUpdatedAt: assetTimes.at(-1) ?? null,
+      meta: {
+        source:
+          "A-Eye Module 1 companion: OpenStreetMap + Overpass -> public/*.geojson + public/road-network.json",
+        boundarySource: "OSM administrative relations (admin_level=8)",
+        latestAssetUpdatedAt: assetTimes.at(-1) ?? null,
       loadedAt: formatKstDateTime(new Date()) ?? "unknown",
       assets: {
         nonRoad: nonRoadAsset

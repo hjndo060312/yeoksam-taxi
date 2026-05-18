@@ -6,16 +6,17 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
 } from "react";
 import {
-  ChevronDown,
-  ChevronUp,
   Gauge,
+  LineChart,
   Map as MapIcon,
   Maximize2,
   Menu,
   Minimize2,
   Navigation,
+  Search,
   X,
 } from "lucide-react";
 import * as THREE from "three";
@@ -26,40 +27,31 @@ import mapGroundingConfig from "../../data/config/gangnam-map-grounding.json";
 import poiConfig from "../../data/config/gangnam-pois.json";
 import {
   WEATHER_OPTIONS,
-  currentSimulationClock,
   format24Hour,
   formatDateLabel,
   normalizeDayMinutes,
-  timeBandLabel,
   type WeatherMode,
 } from "@/components/map-simulator/simulation-environment";
 import { loadSimulationData } from "@/components/map-simulator/load-simulation-data";
 import { createLocalSimulationSource } from "@/components/map-simulator/local-simulation-source";
 import MapSimulatorSceneRuntime from "@/components/map-simulator/MapSimulatorSceneRuntime";
 import { useSyncRef } from "@/components/map-simulator/use-sync-ref";
-import { useLiveData } from "@/components/map-simulator/use-live-data";
-import type { LiveArea, LiveData } from "@/components/map-simulator/use-live-data";
-import { useVehicleTelemetry } from "@/components/map-simulator/use-vehicle-telemetry";
 import {
   conditionDemandForecast,
   DEMAND_FORECAST_SNAPSHOTS,
   type DemandForecastDong,
 } from "@/components/map-simulator/demand-forecast";
-import { useForecastResult } from "@/components/map-simulator/use-forecast-result";
 import {
-  analysisStore,
   sceneSetters,
   sceneStore,
   uiSetters,
   uiStore,
 } from "@/components/map-simulator/simulator-stores";
 import { QuadTree } from "@/components/map-simulator/spatial-quadtree";
-import type { ForecastSource } from "@/components/map-simulator/forecast-contract";
 import {
   BaseCameraMode,
   CameraFocusTarget,
   CameraMode,
-  CircumstanceMode,
   DEFAULT_TAXI_COUNT,
   FpsMode,
   PANEL_ACCENT_CARD_CLASS,
@@ -68,8 +60,6 @@ import {
   PANEL_SECTION_LABEL_CLASS,
   PANEL_TOKEN_CLASS,
   SimulationData,
-  panelBadgeClass,
-  panelSelectableClass,
   projectPoint,
 } from "@/components/map-simulator/core";
 type MapSimulatorProps = {
@@ -126,20 +116,6 @@ const TARGET_DONGS = [
   "대치4동",
 ] as const;
 const PRIMARY_SUBWAY_STATION_NAMES = new Set(["강남", "역삼", "선릉", "신논현"]);
-const LIVE_CONGESTION_SCORE: Record<string, number> = {
-  "매우 붐빔": 5,
-  "붐빔": 4,
-  "약간 붐빔": 3,
-  "보통": 2,
-  "여유": 1,
-};
-const LIVE_TRAFFIC_SCORE: Record<string, number> = {
-  "정체": 3,
-  "서행": 2,
-  "원활": 1,
-};
-const MAP_GROUNDING_SOURCE_LABEL =
-  "서울시 택시승차대 현황 + 서울시/카카오 심야 택시 리포트";
 
 type DemandMiniMapRegion = {
   name: string;
@@ -147,7 +123,8 @@ type DemandMiniMapRegion = {
   labelX: number;
   labelY: number;
   score: number;
-  dispatchActionLevel?: string;
+  pressureLevel?: string;
+  isSelected?: boolean;
 };
 
 type DemandMiniMapLandmark = {
@@ -186,8 +163,270 @@ type DongGroundingInfo = {
   groundingNote: string;
 };
 
+const FORECAST_WEEKDAYS = [
+  { id: "monday", label: "월" },
+  { id: "tuesday", label: "화" },
+  { id: "wednesday", label: "수" },
+  { id: "thursday", label: "목" },
+  { id: "friday", label: "금" },
+  { id: "saturday", label: "토" },
+  { id: "sunday", label: "일" },
+] as const;
+
+type ForecastWeekdayId = (typeof FORECAST_WEEKDAYS)[number]["id"];
+
+type HourlyDemandPoint = {
+  hour: number;
+  populationPred: number;
+  r: number;
+  demandPred: number;
+  trendDemandPred: number;
+  relativeScore: number;
+};
+
+type DemandFetchStatus = "local" | "loading" | "ready" | "error";
+
+const WEEKDAY_DEMAND_MULTIPLIER: Record<ForecastWeekdayId, number> = {
+  monday: 0.94,
+  tuesday: 0.96,
+  wednesday: 0.98,
+  thursday: 1.02,
+  friday: 1.14,
+  saturday: 1.08,
+  sunday: 0.86,
+};
+
+const DEMAND_FORECAST_ENDPOINT =
+  process.env.NEXT_PUBLIC_DEMAND_FORECAST_ENDPOINT?.trim() ?? "";
+
 function clamp01(value: number) {
   return Math.max(0, Math.min(1, value));
+}
+
+function weekdayIdFromDate(dateIso: string): ForecastWeekdayId {
+  const parsed = new Date(`${dateIso}T00:00:00`);
+  const dayIndex = Number.isFinite(parsed.getTime()) ? parsed.getDay() : 5;
+  const byDayIndex: ForecastWeekdayId[] = [
+    "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+  ];
+  return byDayIndex[dayIndex] ?? "friday";
+}
+
+function weekdayLabel(id: ForecastWeekdayId) {
+  return FORECAST_WEEKDAYS.find((weekday) => weekday.id === id)?.label ?? "금";
+}
+
+function hourlyPulse(hour: number, centerHour: number, radiusHours: number) {
+  const dayHours = 24;
+  const diff = Math.abs(hour - centerHour) % dayHours;
+  const distance = Math.min(diff, dayHours - diff);
+  return Math.max(0, 1 - distance / radiusHours);
+}
+
+function roundedR(value: number) {
+  return Math.round(value * 10_000) / 10_000;
+}
+
+function withDemandTrend(points: HourlyDemandPoint[]) {
+  return points.map((point, index) => {
+    const neighbors = points.slice(
+      Math.max(0, index - 1),
+      Math.min(points.length, index + 2),
+    );
+    const averageDemand =
+      neighbors.reduce((sum, neighbor) => sum + neighbor.demandPred, 0) /
+      Math.max(1, neighbors.length);
+    return {
+      ...point,
+      trendDemandPred: Math.round(averageDemand),
+    };
+  });
+}
+
+function buildLocalHourlyDemandSeries({
+  dongName,
+  weekday,
+  weatherMode,
+  grounding,
+}: {
+  dongName: string;
+  weekday: ForecastWeekdayId;
+  weatherMode: WeatherMode;
+  grounding: DongGroundingInfo | null;
+}) {
+  const weekdayMultiplier = WEEKDAY_DEMAND_MULTIPLIER[weekday];
+  const hotspotBoost =
+    grounding?.reportHotspotTier === "primary"
+      ? 0.0032
+      : grounding?.reportHotspotTier === "secondary"
+        ? 0.0016
+        : 0.0006;
+
+  const points = Array.from({ length: 24 }, (_, hour) => {
+    const forecast =
+      conditionDemandForecast(
+        DEMAND_FORECAST_SNAPSHOTS[0],
+        hour * 60,
+        weatherMode,
+      ).find((dong) => dong.dongName === dongName) ??
+      DEMAND_FORECAST_SNAPSHOTS[0].dongs.find((dong) => dong.dongName === dongName);
+    const relativeScore = clamp01(forecast?.relativeScore ?? 0.08);
+    const lateNight = hourlyPulse(hour, 23, 4.2);
+    const commute = hourlyPulse(hour, 19, 4.5) + hourlyPulse(hour, 8.5, 3);
+    const populationPred = Math.round(
+      (10_500 +
+        relativeScore * 58_000 +
+        (forecast?.publicTransitSignal ?? 0.2) * 8_500 +
+        (grounding?.demandGroundingScore ?? forecast?.contextPrior ?? 0) * 90_000) *
+        weekdayMultiplier,
+    );
+    const r = roundedR(
+      0.0046 +
+        relativeScore * 0.0068 +
+        lateNight * 0.0036 +
+        commute * 0.0012 +
+        hotspotBoost +
+        (weekday === "friday" || weekday === "saturday" ? 0.0014 : 0),
+    );
+
+    return {
+      hour,
+      populationPred,
+      r,
+      demandPred: Math.max(0, Math.round(populationPred * r)),
+      trendDemandPred: 0,
+      relativeScore,
+    } satisfies HourlyDemandPoint;
+  });
+
+  return withDemandTrend(points);
+}
+
+function normalizeRemoteDemandPoints(payload: unknown) {
+  const pointsPayload =
+    payload && typeof payload === "object" && "points" in payload
+      ? (payload as { points?: unknown }).points
+      : null;
+  if (!Array.isArray(pointsPayload)) {
+    return null;
+  }
+
+  const points = pointsPayload.flatMap((point) => {
+    if (!point || typeof point !== "object") {
+      return [];
+    }
+    const record = point as Record<string, unknown>;
+    const hour = Number(record.hour);
+    const populationPred = Number(
+      record.population_pred ?? record.populationPred ?? record.population,
+    );
+    const r = Number(record.r);
+    const demandPred = Number(
+      record.demand_pred ?? record.demandPred ?? record.demand,
+    );
+    if (
+      !Number.isInteger(hour) ||
+      hour < 0 ||
+      hour > 23 ||
+      !Number.isFinite(populationPred) ||
+      !Number.isFinite(r) ||
+      !Number.isFinite(demandPred)
+    ) {
+      return [];
+    }
+    return [
+      {
+        hour,
+        populationPred: Math.round(populationPred),
+        r: roundedR(r),
+        demandPred: Math.round(demandPred),
+        trendDemandPred: 0,
+        relativeScore: 0,
+      } satisfies HourlyDemandPoint,
+    ];
+  });
+
+  if (!points.length) {
+    return null;
+  }
+
+  return withDemandTrend(
+    points
+      .sort((left, right) => left.hour - right.hour)
+      .filter((point, index, sorted) => index === 0 || point.hour !== sorted[index - 1]?.hour),
+  );
+}
+
+function buildDemandChartGeometry(points: HourlyDemandPoint[]) {
+  const width = 320;
+  const height = 164;
+  const paddingLeft = 30;
+  const paddingRight = 12;
+  const paddingTop = 16;
+  const paddingBottom = 28;
+  const graphWidth = width - paddingLeft - paddingRight;
+  const graphHeight = height - paddingTop - paddingBottom;
+  const maxDemand = Math.max(1, ...points.map((point) => point.demandPred));
+  const yMax = Math.ceil(maxDemand / 50) * 50;
+  const xForHour = (hour: number) => paddingLeft + (hour / 23) * graphWidth;
+  const yForDemand = (demand: number) =>
+    paddingTop + graphHeight - (Math.max(0, demand) / yMax) * graphHeight;
+  const linePath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xForHour(point.hour).toFixed(2)} ${yForDemand(point.demandPred).toFixed(2)}`)
+    .join(" ");
+  const trendPath = points
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${xForHour(point.hour).toFixed(2)} ${yForDemand(point.trendDemandPred).toFixed(2)}`)
+    .join(" ");
+  const baseY = paddingTop + graphHeight;
+  const areaPath = points.length
+    ? `${linePath} L ${xForHour(points[points.length - 1]!.hour).toFixed(2)} ${baseY.toFixed(2)} L ${xForHour(points[0]!.hour).toFixed(2)} ${baseY.toFixed(2)} Z`
+    : "";
+  const peakPoint = points.reduce(
+    (peak, point) => (point.demandPred > peak.demandPred ? point : peak),
+    points[0] ?? {
+      hour: 0,
+      populationPred: 0,
+      r: 0,
+      demandPred: 0,
+      trendDemandPred: 0,
+      relativeScore: 0,
+    },
+  );
+
+  return {
+    width,
+    height,
+    paddingLeft,
+    baseY,
+    yMax,
+    linePath,
+    trendPath,
+    areaPath,
+    peakPoint,
+    peakX: xForHour(peakPoint.hour),
+    peakY: yForDemand(peakPoint.demandPred),
+    xTicks: [0, 6, 12, 18, 23].map((hour) => ({
+      hour,
+      x: xForHour(hour),
+    })),
+    yTicks: [0, Math.round(yMax / 2), yMax].map((value) => ({
+      value,
+      y: yForDemand(value),
+    })),
+  };
+}
+
+function averageDemand(points: HourlyDemandPoint[]) {
+  if (!points.length) return 0;
+  return Math.round(
+    points.reduce((sum, point) => sum + point.demandPred, 0) / points.length,
+  );
 }
 
 function contextPoiWeight(category: string | null | undefined, hasCitydataCode: boolean) {
@@ -203,49 +442,10 @@ function contextPoiWeight(category: string | null | undefined, hasCitydataCode: 
   return 0.58;
 }
 
-function hotspotTierLabel(tier: string | null | undefined) {
-  switch (tier) {
-    case "primary":
-      return "핵심 수요지";
-    case "secondary":
-      return "보조 수요지";
-    default:
-      return "정적 기준";
-  }
-}
-
 function isSubwayStationFeature(feature: SimulationData["transit"]["features"][number]) {
   return (
     feature.properties.category === "subway_station" &&
     feature.properties.sourceType === "station"
-  );
-}
-
-function AnalysisStatusBadge() {
-  const externalPatternId = analysisStore.useStore((s) => s.externalPatternId);
-  const isActive = externalPatternId !== "none";
-
-  return (
-    <div className={`mt-3 rounded-2xl border p-3 transition-all duration-500 ${
-      isActive 
-        ? "border-cyan-500/30 bg-cyan-500/[0.08] shadow-[0_0_15px_-5px_rgba(6,182,212,0.3)]" 
-        : "border-white/5 bg-white/[0.02]"
-    }`}>
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className={`h-1.5 w-1.5 rounded-full ${isActive ? "animate-pulse bg-cyan-400" : "bg-slate-600"}`} />
-          <span className="text-[11px] font-medium text-slate-400">패턴 분석 엔진</span>
-        </div>
-        <span className={`text-[10px] font-bold tracking-tight ${isActive ? "text-cyan-300" : "text-slate-600"}`}>
-          {isActive ? "NYC PATTERN ACTIVE" : "IDLE"}
-        </span>
-      </div>
-      {isActive && (
-        <div className="mt-2 text-[10px] leading-relaxed text-slate-400">
-          뉴욕 이동 패턴 분석 데이터가 현재 역삼권 시뮬레이션에 반영되고 있습니다.
-        </div>
-      )}
-    </div>
   );
 }
 
@@ -307,41 +507,9 @@ function demandLevelLabel(score: number) {
   return "매우 낮음";
 }
 
-function categoryLabel(category: string | null | undefined): string {
-  if (!category) return "장소";
-  const map: Record<string, string> = {
-    station_commercial: "역세권 상권",
-    tourism_business: "관광·비즈니스",
-    office_district: "업무지구",
-    residential_commercial: "주거·상가 복합",
-    entertainment: "유흥·연효",
-    park_recreation: "공원·여가",
-    hospital: "의료시설",
-    edu_culture: "교육·문화",
-  };
-  return map[category] ?? category;
-}
-
 function compactPoiLabel(name: string) {
   const normalized = name.replace(/\s+/g, " ").trim();
   return normalized.length > 8 ? normalized.slice(0, 8) : normalized;
-}
-
-function demandReasonsFor(dong: DemandForecastDong) {
-  const reasons = [];
-  if (dong.publicTransitSignal >= 0.5) {
-    reasons.push("대중교통 압력");
-  }
-  if (dong.contextMultiplier >= 1.14) {
-    reasons.push("상권·교통 맥락 가중");
-  }
-  if (dong.contextPrior >= 0.008) {
-    reasons.push("시간대 prior");
-  }
-  if (!reasons.length) {
-    reasons.push("기저 패턴");
-  }
-  return reasons.slice(0, 2);
 }
 
 function parseTimeInput(value: string) {
@@ -354,168 +522,53 @@ function parseTimeInput(value: string) {
   return normalizeDayMinutes(hour * 60 + minute);
 }
 
-function formatLivePopulation(area: LiveArea) {
-  if (area.populationMax <= 0) {
-    return "정보 없음";
-  }
-  if (area.populationMin > 0 && area.populationMin !== area.populationMax) {
-    return `${area.populationMin.toLocaleString("ko-KR")}-${area.populationMax.toLocaleString("ko-KR")}`;
-  }
-  return area.populationMax.toLocaleString("ko-KR");
-}
-
-function formatLiveWeather(tempC: number, precipitationType: string) {
-  const tempLabel = Number.isFinite(tempC) && tempC !== 0
-    ? `${Math.round(tempC * 10) / 10}도`
-    : "기온 미제공";
-  const precipLabel = precipitationType && precipitationType !== "없음"
-    ? precipitationType
-    : "강수 없음";
-  return `${tempLabel} · ${precipLabel}`;
-}
-
-function formatKstClock(value: string | null | undefined) {
-  if (!value) {
-    return "";
-  }
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime())) {
-    return value.slice(0, 16).replace("T", " ");
-  }
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(parsed);
-}
-
-function formatKstDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "";
-  }
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime())) {
-    return value.slice(0, 16).replace("T", " ");
-  }
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(parsed);
-}
-
-function formatKstFullDateTime(value: string | null | undefined) {
-  if (!value) {
-    return "";
-  }
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime())) {
-    return value.slice(0, 16).replace("T", " ");
-  }
-  const parts = new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).formatToParts(parsed);
-  const partMap = new globalThis.Map(
-    parts.map((part) => [part.type, part.value]),
+function buildStaticPoiFeatureRows() {
+  const rows = [
+    ...poiConfig.citydata_collection.map((poi) => ({
+      code: poi.code,
+      name: poi.name,
+      coverageDong: poi.coverage_dong,
+      category: poi.category,
+      lon: poi.lon,
+      lat: poi.lat,
+      hasCitydataCode: true,
+    })),
+    ...poiConfig.supplemental_watchlist.map((poi) => ({
+      code: poi.id,
+      name: poi.name,
+      coverageDong: poi.coverage_dong,
+      category: poi.category,
+      lon: poi.lon,
+      lat: poi.lat,
+      hasCitydataCode: Boolean(poi.citydata_code),
+    })),
+  ];
+  const rawScores = rows.map((poi) =>
+    contextPoiWeight(poi.category, poi.hasCitydataCode),
   );
-
-  return [
-    partMap.get("year"),
-    partMap.get("month"),
-    partMap.get("day"),
-  ].join("-") + ` ${partMap.get("hour")}:${partMap.get("minute")}`;
-}
-
-function parseDateTime(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-  const parsed = new Date(value);
-  if (!Number.isFinite(parsed.getTime())) {
-    return null;
-  }
-  return parsed;
-}
-
-function hoursSince(value: string | null | undefined) {
-  const parsed = parseDateTime(value);
-  if (!parsed) {
-    return null;
-  }
-  return (Date.now() - parsed.getTime()) / (1000 * 60 * 60);
-}
-
-function forecastStrategyLabel(strategy: string | null | undefined) {
-  if (strategy === "pattern") return "통계 기반";
-  if (strategy === "exact") return "관측값 기반";
-  return strategy ? strategy : "예측 모델";
-}
-
-function formatPoiPopulationRange(poi: MapPoiFeatureRow | null) {
-  if (!poi) return "-";
-  if (
-    typeof poi.current_population_min === "number" &&
-    typeof poi.current_population_max === "number" &&
-    poi.current_population_min !== poi.current_population_max
-  ) {
-    return `${poi.current_population_min.toLocaleString("ko-KR")}-${poi.current_population_max.toLocaleString("ko-KR")}`;
-  }
-  if (typeof poi.current_population_mid === "number") {
-    return poi.current_population_mid.toLocaleString("ko-KR");
-  }
-  return "-";
-}
-
-function livePopulationMid(area: LiveArea) {
-  if (area.populationMax <= 0 && area.populationMin <= 0) {
-    return 0;
-  }
-  if (area.populationMin > 0 && area.populationMax > 0) {
-    return Math.round((area.populationMin + area.populationMax) / 2);
-  }
-  return Math.max(area.populationMin, area.populationMax, 0);
-}
-
-function buildLivePoiFeatureRows(liveData: LiveData | null) {
-  if (!liveData?.areas.length) {
-    return [];
-  }
-
-  const rawScores = liveData.areas.map((area) => liveAreaScore(area));
   const maxScore = Math.max(...rawScores, 1);
 
-  return liveData.areas
-    .map((area, index) => {
-      const rawScore = rawScores[index] ?? 0;
-      const pressureScore = Math.round((rawScore / maxScore) * 1000) / 1000;
+  return rows
+    .map((poi, index) => {
+      const pressureScore = Math.round(((rawScores[index] ?? 0) / maxScore) * 1000) / 1000;
       return {
-        source_status: "citydata_live",
-        poi_code: area.areaCode,
-        poi_name: area.areaName,
-        coverage_dong: area.coverageDong,
-        category: area.category,
-        lon: area.lon,
-        lat: area.lat,
-        observed_at: area.observedAt,
-        current_population_min: area.populationMin,
-        current_population_max: area.populationMax,
-        current_population_mid: livePopulationMid(area),
-        current_congestion_level: area.congestionLevel,
-        current_congestion_score: LIVE_CONGESTION_SCORE[area.congestionLevel] ?? null,
-        current_traffic_index: area.trafficIndex,
-        current_traffic_speed_kmh: area.speedKmh,
-        current_weather_temp_c: liveData.weather.tempC,
-        current_precipitation_type: liveData.weather.precipitationType,
+        source_status: poi.hasCitydataCode ? "static_citydata_target" : "static_context",
+        poi_code: poi.code,
+        poi_name: poi.name,
+        coverage_dong: poi.coverageDong,
+        category: poi.category,
+        lon: poi.lon,
+        lat: poi.lat,
+        observed_at: null,
+        current_population_min: null,
+        current_population_max: null,
+        current_population_mid: null,
+        current_congestion_level: null,
+        current_congestion_score: null,
+        current_traffic_index: null,
+        current_traffic_speed_kmh: null,
+        current_weather_temp_c: null,
+        current_precipitation_type: null,
         demand_proxy_score: pressureScore,
         poi_pressure_score: pressureScore,
         population_forecast_1h: null,
@@ -526,43 +579,14 @@ function buildLivePoiFeatureRows(liveData: LiveData | null) {
     .sort((left, right) => (right.poi_pressure_score ?? 0) - (left.poi_pressure_score ?? 0));
 }
 
-function monitoringActionLabel(action: string | null | undefined, level?: string | null) {
-  if (action === "선제 이동" || level === "high") return "수급 불균형 심각 (Surge 발동)";
-  if (action === "커버 보강" || level === "medium") return "택시 공급 부족 (배차 유도)";
-  if (action === "관찰" || level === "watch") return "국지적 수요 증가 (관찰)";
-  if (action === "유지" || level === "low") return "수급 안정 (Normal)";
-  return action ?? "-";
-}
-
-function monitoringStatusGrade(level: string | null | undefined) {
-  if (level === "high") return "높음";
-  if (level === "medium") return "보통";
-  if (level === "watch") return "확인";
-  return "안정";
-}
-
-function dispatchActionTextClass(level: string | null | undefined) {
-  if (level === "high") return "text-red-400";
-  if (level === "medium") return "text-yellow-300";
-  if (level === "watch") return "text-blue-300";
-  return "text-slate-400";
-}
-
-function dispatchActionBadgeClass(level: string | null | undefined) {
-  if (level === "high") return "border-red-400/25 bg-red-400/[0.08] text-red-300";
-  if (level === "medium") return "border-yellow-300/25 bg-yellow-300/[0.08] text-yellow-200";
-  if (level === "watch") return "border-blue-300/25 bg-blue-300/[0.08] text-blue-200";
-  return "border-white/10 bg-white/[0.05] text-slate-400";
-}
-
-function dispatchMiniMapIcon(level: string | null | undefined) {
+function pressureMiniMapIcon(level: string | null | undefined) {
   if (level === "high") return "▲";
   if (level === "medium") return "◆";
   if (level === "watch") return "●";
   return "";
 }
 
-function dispatchMiniMapIconColor(level: string | null | undefined) {
+function pressureMiniMapIconColor(level: string | null | undefined) {
   if (level === "high") return "#fb7185";
   if (level === "medium") return "#fde047";
   if (level === "watch") return "#7dd3fc";
@@ -591,41 +615,11 @@ function mapToolButtonClass(active: boolean) {
   }`;
 }
 
-function liveAreaScore(area: LiveArea) {
-  const congestion = LIVE_CONGESTION_SCORE[area.congestionLevel] ?? 0;
-  const traffic = LIVE_TRAFFIC_SCORE[area.trafficIndex] ?? 0;
-  return area.populationMax + congestion * 5_000 + traffic * 2_000;
-}
-
 function poiRenderRadius(cameraMode: CameraMode) {
   if (cameraMode === "overview") return 320;
   if (cameraMode === "follow") return 180;
   if (cameraMode === "ride") return 140;
   return 220;
-}
-
-
-function calculateLatencyMinutes(observedAt: string | undefined) {
-  if (!observedAt) return null;
-  const observedTimestamp = new Date(observedAt).getTime();
-  if (!Number.isFinite(observedTimestamp)) {
-    return null;
-  }
-  return Math.max(0, Math.round((Date.now() - observedTimestamp) / 60000));
-}
-
-function formatLatencyLabel(minutes: number | null) {
-  if (minutes == null) {
-    return null;
-  }
-  if (minutes < 60) {
-    return `반영 시차 약 ${minutes}분`;
-  }
-  const hours = Math.floor(minutes / 60);
-  const remainMinutes = minutes % 60;
-  return remainMinutes > 0
-    ? `반영 시차 약 ${hours}시간 ${remainMinutes}분`
-    : `반영 시차 약 ${hours}시간`;
 }
 
 export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
@@ -635,7 +629,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   const status = sceneStore.useStore((state) => state.status);
   const statusDetail = sceneStore.useStore((state) => state.statusDetail);
   const loadingProgress = sceneStore.useStore((state) => state.loadingProgress);
-  const circumstanceMode = sceneStore.useStore((state) => state.circumstanceMode);
   const simulationDate = sceneStore.useStore((state) => state.simulationDate);
   const simulationTimeMinutes = sceneStore.useStore(
     (state) => state.simulationTimeMinutes,
@@ -654,6 +647,16 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   const isScenarioControlsExpanded = uiStore.useStore(
     (state) => state.isScenarioControlsExpanded,
   );
+  const [forecastDongName, setForecastDongName] = useState<string>("역삼1동");
+  const [forecastWeekday, setForecastWeekday] = useState<ForecastWeekdayId>(
+    () => weekdayIdFromDate(simulationDate),
+  );
+  const [remoteDemandPoints, setRemoteDemandPoints] = useState<
+    HourlyDemandPoint[] | null
+  >(null);
+  const [demandFetchStatus, setDemandFetchStatus] =
+    useState<DemandFetchStatus>("local");
+
   const {
     setData,
     setStatus,
@@ -708,16 +711,9 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   const roadNetworkGroupRef = useRef<THREE.Group | null>(null);
   const cameraFocusTargetRef = useRef<CameraFocusTarget | null>(null);
 
-  const { liveData, status: liveDataStatus } = useLiveData();
-  const {
-    telemetryFrame,
-    status: telemetryStatus,
-    errorMessage: telemetryErrorMessage,
-  } = useVehicleTelemetry();
-  const telemetryFrameRef = useSyncRef(telemetryFrame);
   const mapPoiFeatureRows = useMemo(
-    () => buildLivePoiFeatureRows(liveData),
-    [liveData],
+    () => buildStaticPoiFeatureRows(),
+    [],
   );
   const dongGroundingByName = useMemo(() => {
     const taxiStandCounts = new globalThis.Map<string, number>();
@@ -867,34 +863,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   }, [activePoiCode, cameraMode, mapPoiFeatureRows, miniMapFocus, poiSpatialIndex]);
   const scenePoiFeatureRowsRef = useSyncRef(scenePoiFeatureRows);
 
-  // Live mode: auto-apply weather from Seoul citydata (스냅샷이 3시간 이상 오래되면 적용 안 함)
-  useEffect(() => {
-    if (circumstanceMode !== "live" || !liveData || liveData.isStale) {
-      return;
-    }
-    const nextWeatherMode = liveData.weather.weatherMode;
-    const timeoutId = window.setTimeout(() => {
-      setWeatherMode(nextWeatherMode);
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [circumstanceMode, liveData, setWeatherMode]);
-
-  // Live mode: 도로 실측 속도 → 차량 속도 반영 (40km/h 기준, 최소 0.35)
-  useEffect(() => {
-    if (circumstanceMode !== "live" || !liveData || liveData.isStale) {
-      congestionSpeedMultiplierRef.current = 1.0;
-      return;
-    }
-    const validSpeeds = liveData.areas.map((a) => a.speedKmh).filter((s) => s > 0);
-    if (!validSpeeds.length) {
-      congestionSpeedMultiplierRef.current = 1.0;
-      return;
-    }
-    const avg = validSpeeds.reduce((s, v) => s + v, 0) / validSpeeds.length;
-    congestionSpeedMultiplierRef.current = Math.min(1.0, Math.max(0.35, avg / 40));
-  }, [circumstanceMode, liveData]);
-
   const markSceneRendering = useCallback((detail: string) => {
     setStatus("rendering");
     setStatusDetail(detail);
@@ -904,26 +872,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     setStatus("error");
     setStatusDetail(detail);
   }, [setStatus, setStatusDetail]);
-
-  useEffect(() => {
-    if (circumstanceMode !== "live") {
-      return;
-    }
-
-    const syncClock = () => {
-      const clock = currentSimulationClock();
-      setSimulationDate((current) =>
-        current === clock.dateIso ? current : clock.dateIso,
-      );
-      setSimulationTimeMinutes((current) =>
-        current === clock.minutes ? current : clock.minutes,
-      );
-    };
-
-    syncClock();
-    const intervalId = window.setInterval(syncClock, 15_000);
-    return () => window.clearInterval(intervalId);
-  }, [circumstanceMode, setSimulationDate, setSimulationTimeMinutes]);
 
   useEffect(() => {
     labelRefreshRequestRef.current += 1;
@@ -1046,150 +994,20 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     },
     [forecastOffsetMinutes, normalizedSimulationTimeMinutes, weatherMode],
   );
-  const forecastResult = useForecastResult();
-  const forecastSource: ForecastSource =
-    forecastResult?.regions?.length ? "model" : "sample";
-  const forecastStrategyText = forecastStrategyLabel(
-    forecastResult?.strategy,
-  );
-  const forecastAverageConfidence = useMemo(() => {
-    if (!forecastResult?.regions?.length) return null;
-    const confidenceValues = forecastResult.regions
-      .map((region) => region.confidence)
-      .filter((value): value is number => typeof value === "number");
-    if (!confidenceValues.length) return null;
-    const sum = confidenceValues.reduce((acc, value) => acc + value, 0);
-    return sum / confidenceValues.length;
-  }, [forecastResult]);
-  const isForecastLowConfidence =
-    forecastAverageConfidence != null && forecastAverageConfidence < 0.6;
-  const forecastTargetAgeHours = useMemo(
-    () => hoursSince(forecastResult?.target_datetime),
-    [forecastResult?.target_datetime],
-  );
-  const isForecastSnapshotStale =
-    forecastSource === "model" &&
-    forecastTargetAgeHours != null &&
-    forecastTargetAgeHours > 2;
-  const forecastSourceTokenClass =
-    forecastSource === "model"
-      ? `${PANEL_TOKEN_CLASS} border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-200`
-      : `${PANEL_TOKEN_CLASS} border-amber-300/25 bg-amber-300/[0.08] text-amber-200`;
-  const forecastSourceTokenText = (() => {
-    if (!(forecastSource === "model" && forecastResult)) return "기준 시나리오";
-    const targetLabel = formatKstFullDateTime(forecastResult.target_datetime);
-    const tokenPrefix = isForecastSnapshotStale ? "저장 스냅샷" : "운영 전망";
-    return `${tokenPrefix} · ${forecastStrategyText} · ${targetLabel}`;
-  })();
-
-  // effectiveDongs is what the heatmap actually renders.
-  // Prefer live citydata-derived scores. Fall back to model output only when
-  // it is fresh, otherwise fall back to the local scenario snapshot.
-  type OperationalSource = "live" | ForecastSource;
+  // effectiveDongs is what the heatmap actually renders. Keep it local and
+  // deterministic so the map stays light and offline-friendly.
+  type OperationalSource = "sample";
   type EffectiveDong = DemandForecastDong & {
     confidence?: number;
     source: OperationalSource;
-    livePoiCount?: number;
-    livePopulationMid?: number;
-    liveCongestionLevel?: string | null;
-    liveTrafficIndex?: string | null;
+    staticPoiCount?: number;
     taxiStandCount?: number;
     supplyGroundingScore?: number;
     demandGroundingScore?: number;
     reportHotspotTier?: string;
     groundingNote?: string;
   };
-  const liveDemandDongs = useMemo((): EffectiveDong[] => {
-    const grouped = new globalThis.Map<string, MapPoiFeatureRow[]>();
-    mapPoiFeatureRows.forEach((poi) => {
-      if (!poi.coverage_dong) {
-        return;
-      }
-      const rows = grouped.get(poi.coverage_dong) ?? [];
-      rows.push(poi);
-      grouped.set(poi.coverage_dong, rows);
-    });
-
-    const scoredDongs = TARGET_DONGS.map((dongName) => {
-      const rows = grouped.get(dongName) ?? [];
-      const averagePressure = rows.length
-        ? rows.reduce((sum, row) => sum + (row.poi_pressure_score ?? 0), 0) / rows.length
-        : 0;
-      const coverageBoost = rows.length > 1 ? 1 + Math.min(0.12, (rows.length - 1) * 0.06) : 1;
-      const rawScore = averagePressure * coverageBoost;
-      const livePopulationMid = rows.length
-        ? Math.round(
-          rows.reduce((sum, row) => sum + (row.current_population_mid ?? 0), 0) / rows.length,
-        )
-        : 0;
-      const liveCongestionLevel = rows[0]?.current_congestion_level ?? null;
-      const liveTrafficIndex = rows[0]?.current_traffic_index ?? null;
-      const grounding = dongGroundingByName.get(dongName);
-      return {
-        dongName,
-        rawScore,
-        livePoiCount: rows.length,
-        livePopulationMid,
-        liveCongestionLevel,
-        liveTrafficIndex,
-        grounding,
-      };
-    });
-
-    const maxRawScore = Math.max(
-      ...scoredDongs.map((dong) => dong.rawScore),
-      1,
-    );
-
-    return scoredDongs.map((dong) => ({
-      dongName: dong.dongName,
-      relativeScore: clamp01(
-        (dong.rawScore > 0 ? (dong.rawScore / maxRawScore) * 0.88 : 0) +
-          (dong.grounding?.demandGroundingScore ?? 0) * 0.12,
-      ),
-      contextPrior: dong.grounding?.demandGroundingScore ?? 0,
-      publicTransitSignal: 0,
-      contextMultiplier: 1,
-      source: "live" as const,
-      livePoiCount: dong.livePoiCount,
-      livePopulationMid: dong.livePopulationMid,
-      liveCongestionLevel: dong.liveCongestionLevel,
-      liveTrafficIndex: dong.liveTrafficIndex,
-      taxiStandCount: dong.grounding?.taxiStandCount ?? 0,
-      supplyGroundingScore: dong.grounding?.supplyGroundingScore ?? 0,
-      demandGroundingScore: dong.grounding?.demandGroundingScore ?? 0,
-      reportHotspotTier: dong.grounding?.reportHotspotTier ?? "context",
-      groundingNote: dong.grounding?.groundingNote,
-    }));
-  }, [dongGroundingByName, mapPoiFeatureRows]);
-  const hasLiveOperationalSignal = liveDemandDongs.some(
-    (dong) => (dong.livePoiCount ?? 0) > 0 && dong.relativeScore > 0,
-  );
   const effectiveDongs = useMemo((): EffectiveDong[] => {
-    if (hasLiveOperationalSignal) {
-      return liveDemandDongs;
-    }
-    if (forecastSource === "model" && forecastResult && !isForecastSnapshotStale) {
-      return forecastResult.regions.map((r) => {
-        const grounding = dongGroundingByName.get(r.dong_name);
-        return {
-          dongName: r.dong_name,
-          relativeScore: clamp01(
-            r.score * 0.9 + (grounding?.demandGroundingScore ?? 0) * 0.1,
-          ),
-          contextPrior: grounding?.demandGroundingScore ?? 0,
-          publicTransitSignal: 0,
-          contextMultiplier: 1,
-          confidence: r.confidence ?? undefined,
-          source: "model" as const,
-          taxiStandCount: grounding?.taxiStandCount ?? 0,
-          supplyGroundingScore: grounding?.supplyGroundingScore ?? 0,
-          demandGroundingScore: grounding?.demandGroundingScore ?? 0,
-          reportHotspotTier: grounding?.reportHotspotTier ?? "context",
-          groundingNote: grounding?.groundingNote,
-        };
-      });
-    }
     return conditionedForecastDongs.map((d) => ({
       ...d,
       relativeScore: clamp01(
@@ -1198,6 +1016,9 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
       ),
       contextPrior: dongGroundingByName.get(d.dongName)?.demandGroundingScore ?? d.contextPrior,
       source: "sample" as const,
+      staticPoiCount: mapPoiFeatureRows.filter(
+        (poi) => poi.coverage_dong === d.dongName,
+      ).length,
       taxiStandCount: dongGroundingByName.get(d.dongName)?.taxiStandCount ?? 0,
       supplyGroundingScore: dongGroundingByName.get(d.dongName)?.supplyGroundingScore ?? 0,
       demandGroundingScore: dongGroundingByName.get(d.dongName)?.demandGroundingScore ?? 0,
@@ -1207,14 +1028,10 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   }, [
     conditionedForecastDongs,
     dongGroundingByName,
-    forecastResult,
-    forecastSource,
-    hasLiveOperationalSignal,
-    isForecastSnapshotStale,
-    liveDemandDongs,
+    mapPoiFeatureRows,
   ]);
 
-  const sortedDispatchDecisions = useMemo(
+  const sortedDemandSignals = useMemo(
     () =>
       [...effectiveDongs]
         .map((dong) => {
@@ -1222,12 +1039,10 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
             dong.relativeScore * 0.82 + (dong.demandGroundingScore ?? 0) * 0.18,
           );
           const supplyProxyScore = dong.supplyGroundingScore ?? 0;
-          const congestionPenalty =
-            dong.liveTrafficIndex === "정체" ? 0.08 : dong.liveTrafficIndex === "서행" ? 0.04 : 0;
           // supplyProxyScore는 택시승차대 수 기반이므로 패널티를 낮게 유지.
           // 역삼1동처럼 승차대가 많아도 심야 초과수요가 최고인 경우를 반영.
           const imbalanceScore = clamp01(
-            groundedDemandScore + congestionPenalty - supplyProxyScore * 0.12,
+            groundedDemandScore - supplyProxyScore * 0.12,
           );
           const actionLevel = monitoringLevelForScore(imbalanceScore);
           return {
@@ -1237,7 +1052,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
             imbalance_score: imbalanceScore,
             action_level: actionLevel,
             action: monitoringActionForLevel(actionLevel),
-            coverage_units: dong.livePoiCount ?? 0,
+            coverage_units: dong.staticPoiCount ?? 0,
             recommended_taxis: Math.max(
               1,
               Math.round(
@@ -1250,10 +1065,8 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
               ),
             ),
             incentive_multiplier: 1,
-            congestion_score: dong.liveCongestionLevel ?? null,
-            avg_speed_kmh: null,
-            live_population_mid: dong.livePopulationMid ?? null,
-            live_traffic_index: dong.liveTrafficIndex ?? null,
+            context_signal_label: demandLevelLabel(dong.relativeScore),
+            road_signal_label: "정적 도로망",
             taxi_stand_count: dong.taxiStandCount ?? 0,
             hotspot_tier: dong.reportHotspotTier ?? "context",
             grounding_note: dong.groundingNote ?? null,
@@ -1262,15 +1075,86 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
         .sort((left, right) => right.imbalance_score - left.imbalance_score),
     [effectiveDongs],
   );
-  const dispatchByDong = useMemo(
+  const demandSignalByDong = useMemo(
     () =>
       new globalThis.Map(
-        sortedDispatchDecisions.map(
+        sortedDemandSignals.map(
           (decision) => [decision.dong_name, decision] as const,
         ),
       ),
-    [sortedDispatchDecisions],
+    [sortedDemandSignals],
   );
+
+  const selectedForecastGrounding =
+    dongGroundingByName.get(forecastDongName) ?? null;
+  const localDemandSeries = useMemo(
+    () =>
+      buildLocalHourlyDemandSeries({
+        dongName: forecastDongName,
+        weekday: forecastWeekday,
+        weatherMode,
+        grounding: selectedForecastGrounding,
+      }),
+    [forecastDongName, forecastWeekday, selectedForecastGrounding, weatherMode],
+  );
+
+  useEffect(() => {
+    if (!DEMAND_FORECAST_ENDPOINT) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const url = new URL(DEMAND_FORECAST_ENDPOINT, window.location.origin);
+    url.searchParams.set("dong", forecastDongName);
+    url.searchParams.set("weekday", forecastWeekday);
+
+    fetch(url.toString(), {
+      cache: "no-store",
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Demand forecast request failed: ${response.status}`);
+        }
+        return response.json() as Promise<unknown>;
+      })
+      .then((payload) => {
+        const normalized = normalizeRemoteDemandPoints(payload);
+        if (!normalized) {
+          throw new Error("Demand forecast response has no valid points.");
+        }
+        setRemoteDemandPoints(normalized);
+        setDemandFetchStatus("ready");
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) {
+          return;
+        }
+        console.error(error);
+        setRemoteDemandPoints(null);
+        setDemandFetchStatus("error");
+      });
+
+    return () => controller.abort();
+  }, [forecastDongName, forecastWeekday]);
+
+  const hourlyDemandSeries = remoteDemandPoints ?? localDemandSeries;
+  const demandChart = useMemo(
+    () => buildDemandChartGeometry(hourlyDemandSeries),
+    [hourlyDemandSeries],
+  );
+  const selectedForecastDecision = demandSignalByDong.get(forecastDongName) ?? null;
+  const selectedAverageDemand = averageDemand(hourlyDemandSeries);
+  const selectedPeakDemand = demandChart.peakPoint;
+  const selectedForecastRLabel = `${(selectedPeakDemand.r * 100).toFixed(2)}%`;
+  const demandFetchBadgeText =
+    demandFetchStatus === "ready"
+      ? "백엔드"
+      : demandFetchStatus === "loading"
+        ? "요청 중"
+        : demandFetchStatus === "error"
+          ? "로컬 대체"
+          : "로컬";
 
   const demandByDong = useMemo(
     () =>
@@ -1278,13 +1162,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
         effectiveDongs.map(
           (dong) => [dong.dongName, dong] as const,
         ),
-      ),
-    [effectiveDongs],
-  );
-  const rankedForecastDongs = useMemo(
-    () =>
-      [...effectiveDongs].sort(
-        (left, right) => right.relativeScore - left.relativeScore,
       ),
     [effectiveDongs],
   );
@@ -1355,14 +1232,15 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
           )
           .join(" ");
         const labelPoint = mapPoint(centerOfRings(dong.rings));
-        const dispatchDecision = dispatchByDong.get(dong.name);
+        const demandSignal = demandSignalByDong.get(dong.name);
         return {
           name: dong.name,
           path,
           labelX: labelPoint.x,
           labelY: labelPoint.y,
           score: demandByDong.get(dong.name)?.relativeScore ?? 0,
-          dispatchActionLevel: dispatchDecision?.action_level,
+          pressureLevel: demandSignal?.action_level,
+          isSelected: dong.name === forecastDongName,
         } satisfies DemandMiniMapRegion;
       }),
       landmarks: data.transit.features
@@ -1400,7 +1278,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
       pois: [...mapPoiFeatureRows]
         .filter(
           (poi) =>
-            poi.source_status === "citydata_live" &&
             Number.isFinite(poi.lon) &&
             Number.isFinite(poi.lat),
         )
@@ -1438,62 +1315,13 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   }, [
     data,
     demandByDong,
-    dispatchByDong,
+    demandSignalByDong,
     mapPoiFeatureRows,
     miniMapFocus,
     scenarioMapCenter,
     activePoiCode,
+    forecastDongName,
   ]);
-  const mapEvidenceMetrics = useMemo(() => {
-    if (!data) {
-      return [
-        { label: "행정동", value: "-", detail: "OSM 경계" },
-        { label: "도로", value: "-", detail: "OSM road" },
-        { label: "건물", value: "-", detail: "OSM building" },
-        { label: "그래프", value: "-", detail: "경로 세그먼트" },
-      ];
-    }
-    return [
-      {
-        label: "행정동",
-        value: `${data.dongs.features.length}개`,
-        detail: "OSM 경계",
-      },
-      {
-        label: "도로",
-        value: data.roads.features.length.toLocaleString("ko-KR"),
-        detail: "OSM road",
-      },
-      {
-        label: "건물",
-        value: data.buildings.features.length.toLocaleString("ko-KR"),
-        detail: "OSM building",
-      },
-      {
-        label: "그래프",
-        value: (data.roadNetwork?.stats.segmentCount ?? data.graph.edgeById.size)
-          .toLocaleString("ko-KR"),
-        detail: "경로 세그먼트",
-      },
-    ];
-  }, [data]);
-  const sortedMapPoiRows = useMemo(
-    () =>
-      [...mapPoiFeatureRows]
-        .filter((poi) => poi.source_status === "citydata_live")
-        .sort(
-          (left, right) =>
-            (right.poi_pressure_score ?? 0) - (left.poi_pressure_score ?? 0),
-        ),
-    [mapPoiFeatureRows],
-  );
-  const selectedPoi =
-    sortedMapPoiRows.find((poi) => poi.poi_code === activePoiCode) ??
-    sortedMapPoiRows[0] ??
-    null;
-  const selectedPoiGrounding = selectedPoi?.coverage_dong
-    ? dongGroundingByName.get(selectedPoi.coverage_dong) ?? null
-    : null;
   const handlePoiSelect = useCallback((poiCode: string) => {
     const poi = mapPoiFeatureRows.find((row) => row.poi_code === poiCode);
     setSelectedPoiCode(poiCode);
@@ -1526,158 +1354,10 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     setIsSidebarCollapsed,
     setSelectedPoiCode,
   ]);
-  const topLiveAreas = useMemo(() => {
-    if (!liveData?.areas.length) {
-      return [];
-    }
-    return [...liveData.areas]
-      .sort((left, right) => liveAreaScore(right) - liveAreaScore(left))
-      .slice(0, 3);
-  }, [liveData]);
-  const primaryLiveArea = topLiveAreas[0] ?? null;
-  const liveStatusLabel =
-    primaryLiveArea && liveDataStatus === "loading"
-      ? "업데이트 중"
-      : primaryLiveArea && liveData && liveDataStatus !== "error"
-        ? liveData.isStale
-          ? "스냅샷"
-          : liveData.meta.isPartial
-            ? "부분 반영"
-            : "실시간 연결"
-        : liveDataStatus === "loading"
-          ? "연결 중"
-          : liveDataStatus === "error"
-          ? "연결 실패"
-            : "대기";
-  const telemetryVehicleCount = telemetryFrame?.vehicles.length ?? 0;
-  const telemetryStatusLabel =
-    telemetryFrame
-      ? telemetryFrame.is_demo
-        ? "데모 스트림"
-        : "위치 스트림 연결"
-      : telemetryStatus === "loading"
-        ? "위치 스트림 연결 중"
-        : telemetryStatus === "error"
-          ? "위치 스트림 재연결"
-          : "위치 스트림 대기";
-  const telemetryStatusDetail = telemetryFrame
-    ? `${telemetryVehicleCount.toLocaleString("ko-KR")}대 · ${telemetryFrame.source}`
-    : telemetryStatus === "error"
-      ? (telemetryErrorMessage ?? "스트림 재시도 중")
-      : "외부 SSE 피드 연결 전";
-  const isLiveFresh =
-    Boolean(primaryLiveArea && liveData && !liveData.isStale && liveDataStatus !== "error");
-  const liveObservedAt = primaryLiveArea?.observedAt
-    || liveData?.weather.observedAt
-    || liveData?.fetchedAt
-    || "";
-  const liveLatencyMinutes = calculateLatencyMinutes(liveObservedAt || undefined);
-  const liveLatencyLabel = formatLatencyLabel(liveLatencyMinutes);
-  const liveCoverageLabel = liveData
-    ? `${liveData.meta.returnedPlaceCount}/${liveData.meta.expectedPlaceCount}개 반영`
-    : null;
-  const liveCoverageTitle = liveData?.meta.failedPlaceCodes.length
-    ? `누락 코드: ${liveData.meta.failedPlaceCodes.join(", ")}`
-    : undefined;
-  const liveSourceTokenClass = liveData
-    ? liveData.isStale
-      ? `${PANEL_TOKEN_CLASS} border-amber-300/25 bg-amber-300/[0.08] text-amber-200`
-      : liveData.meta.isPartial
-        ? `${PANEL_TOKEN_CLASS} border-amber-300/25 bg-amber-300/[0.08] text-amber-200`
-        : `${PANEL_TOKEN_CLASS} border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-100`
-    : forecastSourceTokenClass;
-  const liveSourceTokenText = (() => {
-    if (!liveData) {
-      return forecastSourceTokenText;
-    }
-    const statusLabel = liveData.isStale
-      ? "서울 공개데이터 스냅샷"
-      : liveData.meta.isPartial
-        ? "서울 공개데이터 일부 수신"
-        : "서울 공개데이터 실시간";
-    const observedLabel = formatKstFullDateTime(liveObservedAt || liveData.fetchedAt);
-    const coverageLabel = liveCoverageLabel ?? "반영 수 확인 중";
-    return [statusLabel, coverageLabel, observedLabel].filter(Boolean).join(" · ");
-  })();
-  const liveInputTitle = liveData
-    ? liveData.isStale
-      ? "서울 공개데이터 스냅샷"
-      : liveData.meta.isPartial
-        ? "서울 공개데이터 (일부 수신)"
-        : "서울 공개데이터 실시간 입력"
-    : "서울 공개데이터 연결 준비";
-  const liveInputSummary = [
-    liveCoverageLabel,
-    telemetryFrame ? `${telemetryVehicleCount.toLocaleString("ko-KR")}대 차량 스트림` : null,
-    liveObservedAt ? `최근 관측 ${formatKstDateTime(liveObservedAt)}` : null,
-    primaryLiveArea?.areaName ?? null,
-  ].filter((value): value is string => Boolean(value)).join(" · ");
-  const liveWeatherSummary = liveData
-    ? formatLiveWeather(
-      liveData.weather.tempC,
-      liveData.weather.precipitationType,
-    )
-    : selectedWeather.label;
-  const forecastResultLabel =
-    forecastResult?.source === "demo" ? "대체 시나리오" : "공개데이터 전망";
-  const operationalSignalSource: "live" | "model" | "sample" =
-    hasLiveOperationalSignal
-      ? "live"
-      : forecastSource === "model" && forecastResult && !isForecastSnapshotStale
-        ? "model"
-        : "sample";
-  const operationalBadgeText =
-    operationalSignalSource === "live"
-      ? liveData?.isStale
-        ? "공개데이터 스냅샷"
-        : liveData?.meta.isPartial
-          ? "공개데이터 (일부 수신)"
-          : "공개데이터 실시간"
-      : operationalSignalSource === "model"
-        ? [forecastResultLabel, forecastStrategyText, isForecastLowConfidence ? "신뢰도 낮음" : null]
-          .filter((value): value is string => Boolean(value))
-          .join(" · ")
-        : "기준 시나리오";
-  const operationalBadgeClass =
-    operationalSignalSource === "live"
-      ? liveData?.isStale || liveData?.meta.isPartial
-        ? "border-amber-300/25 bg-amber-300/[0.08] text-amber-200"
-        : "border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-100"
-      : operationalSignalSource === "model"
-        ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-        : "border-white/10 bg-white/[0.06] text-slate-400";
-  const forecastSnapshotSummary =
-    operationalSignalSource === "model" && forecastResult
-      ? [
-        `예측 ${formatKstDateTime(forecastResult.target_datetime)}`,
-        forecastStrategyText,
-        forecastResultLabel,
-      ].filter((value): value is string => Boolean(value)).join(" · ")
-      : null;
-  const liveObservationLabel = liveObservedAt
-    ? `관측 기준 ${formatKstDateTime(liveObservedAt)}`
-    : null;
-  const liveMetaSummary = [
-    "서울 공개데이터",
-    liveCoverageLabel ? `실시간 반영 ${liveCoverageLabel}` : null,
-    liveData?.meta.fetchedAt
-      ? `서버 수신 ${formatKstClock(liveData.meta.fetchedAt)}`
-      : null,
-  ].filter((value): value is string => Boolean(value));
-  const liveLatencyBadgeClass = liveLatencyMinutes != null && liveLatencyMinutes >= 120
-    ? "border-amber-300/25 bg-amber-300/[0.08] text-amber-200"
-    : "border-white/10 bg-white/[0.05] text-slate-300";
-  const topDemandDong = rankedForecastDongs[0] ?? null;
-  const topDemandScoreLabel = topDemandDong
-    ? Math.round(topDemandDong.relativeScore * 100)
-    : 0;
   const formattedSimulationTime = format24Hour(normalizedSimulationTimeMinutes);
   const formattedSimulationDate = formatDateLabel(simulationDate);
-  const simulationTimeBand = timeBandLabel(normalizedSimulationTimeMinutes);
-  const circumstanceOptions: Array<{ id: CircumstanceMode; label: string }> = [
-    { id: "live", label: "실시간" },
-    { id: "specific", label: "특정 시각" },
-  ];
+  const operationalBadgeClass =
+    "border-sky-300/25 bg-sky-300/[0.08] text-sky-100";
   const isSidebarVisible = !isSidebarCollapsed && !isMapFocusMode;
   const mapCanvasClass = isSidebarVisible
     ? "h-full w-full border-r border-white/10 lg:w-[62vw] xl:w-[calc(100%-500px)]"
@@ -1717,53 +1397,8 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   }
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-[#060d16]">
-      <header
-        data-ui-panel="map-header"
-        className="flex-none border-b border-white/10 bg-slate-950/88 backdrop-blur-xl"
-      >
-        <div className="flex h-16 w-full items-center justify-between gap-3 px-3 sm:px-4 lg:px-6">
-          <div className="min-w-0 flex items-center gap-3">
-            <div className="relative shrink-0">
-              <div className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              <div className="absolute -inset-1 rounded-full bg-emerald-400/30 blur-sm" />
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-black text-slate-50">
-                강남 교통 운영
-              </div>
-              <div className="hidden truncate text-[11px] text-slate-400 sm:block">
-                모빌리티 디지털 트윈 : 택시 수요 예측 및 동적 배차
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="hidden rounded-full border border-cyan-300/30 bg-cyan-300/12 px-3 py-1.5 text-xs font-semibold text-cyan-50 md:inline-flex">
-              지도
-            </span>
-            <button
-              type="button"
-              data-ui-control="header-sidebar-toggle"
-              aria-label={isSidebarVisible ? "운영 패널 닫기" : "운영 패널 열기"}
-              aria-expanded={isSidebarVisible}
-              onClick={toggleSidebar}
-              className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm font-semibold text-slate-100 transition hover:border-white/20 hover:bg-white/[0.1]"
-            >
-              {isSidebarVisible ? (
-                <X className="h-4 w-4" aria-hidden="true" />
-              ) : (
-                <Menu className="h-4 w-4" aria-hidden="true" />
-              )}
-              <span className="hidden sm:inline">
-                {isSidebarVisible ? "패널 닫기" : "운영 패널"}
-              </span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <section className="relative flex-1 overflow-hidden">
+    <div className="relative h-screen w-full overflow-hidden bg-[#060d16]">
+      <section className="relative h-full overflow-hidden">
         <div
           ref={containerRef}
           className={mapCanvasClass}
@@ -1773,7 +1408,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
             containerRef={containerRef}
             data={data}
             poiFeatureRowsRef={scenePoiFeatureRowsRef}
-            telemetryFrameRef={telemetryFrameRef}
             onPoiSelect={handlePoiSelect}
             simulationSource={simulationSource}
             appliedTaxiCountRef={appliedTaxiCountRef}
@@ -1809,6 +1443,137 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
             onCameraFocusChange={setMiniMapFocus}
           />
         </MapSimulatorErrorBoundary>
+
+        <div
+          data-ui-panel="map-search-control"
+          className={`absolute left-3 right-3 top-3 z-30 max-w-[430px] lg:left-4 lg:right-auto ${isSidebarVisible ? "lg:max-w-[calc(62vw-2rem)]" : ""}`}
+        >
+          <div className="flex h-14 items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/96 px-2.5 text-slate-900 shadow-[0_10px_30px_rgba(15,23,42,0.20)] backdrop-blur-md">
+            <button
+              type="button"
+              aria-label="지도 조건 열기"
+              aria-expanded={isScenarioControlsExpanded}
+              onClick={() => setIsScenarioControlsExpanded((current) => !current)}
+              className="flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-2 text-left transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
+            >
+              <Search className="h-5 w-5 shrink-0 text-slate-500" aria-hidden="true" />
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-bold text-slate-950">
+                  강남 교통 운영
+                </span>
+                <span className="block truncate text-[11px] text-slate-500">
+                  {MAP_SCOPE_LABEL} · {formattedSimulationTime} · {selectedWeather.label}
+                </span>
+              </span>
+            </button>
+
+            <span className="hidden shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700 sm:inline-flex">
+              로컬
+            </span>
+
+            <button
+              type="button"
+              data-ui-control="map-sidebar-toggle"
+              aria-label={isSidebarVisible ? "운영 패널 닫기" : "운영 패널 열기"}
+              aria-expanded={isSidebarVisible}
+              onClick={toggleSidebar}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-400/50"
+            >
+              {isSidebarVisible ? (
+                <X className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <Menu className="h-4 w-4" aria-hidden="true" />
+              )}
+            </button>
+          </div>
+
+          {isScenarioControlsExpanded ? (
+            <div
+              data-ui-panel="map-condition-drawer"
+              className="mt-2 rounded-2xl border border-slate-200/80 bg-white/96 p-3 text-slate-900 shadow-[0_12px_34px_rgba(15,23,42,0.18)] backdrop-blur-md"
+            >
+              <div className="grid grid-cols-2 gap-2 text-[11px] sm:grid-cols-4">
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <div className="text-slate-500">날짜</div>
+                  <div className="mt-0.5 font-semibold text-slate-900">
+                    {formattedSimulationDate}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <div className="text-slate-500">시간</div>
+                  <div className="mt-0.5 font-semibold tabular-nums text-slate-900">
+                    {formattedSimulationTime}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <div className="text-slate-500">날씨</div>
+                  <div className="mt-0.5 font-semibold text-slate-900">
+                    {selectedWeather.label}
+                  </div>
+                </div>
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <div className="text-slate-500">데이터</div>
+                  <div className="mt-0.5 font-semibold text-slate-900">
+                    오프라인
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  날짜
+                  <input
+                    type="date"
+                    value={simulationDate}
+                    onChange={(event) => {
+                      setCircumstanceMode("specific");
+                      setSimulationDate(event.target.value);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-cyan-400"
+                    aria-label="운영 지도 기준 날짜"
+                  />
+                </label>
+                <label className="text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                  시간
+                  <input
+                    type="time"
+                    step={300}
+                    value={formattedSimulationTime}
+                    onChange={(event) => {
+                      const nextMinutes = parseTimeInput(event.target.value);
+                      if (nextMinutes === null) {
+                        return;
+                      }
+                      setCircumstanceMode("specific");
+                      setSimulationTimeMinutes(nextMinutes);
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-cyan-400"
+                    aria-label="운영 지도 기준 시간"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-3 block text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+                날씨
+                <select
+                  value={weatherMode}
+                  onChange={(event) => {
+                    setCircumstanceMode("specific");
+                    setWeatherMode(event.target.value as WeatherMode);
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-900 outline-none transition focus:border-cyan-400"
+                  aria-label="운영 지도 날씨 조건"
+                >
+                  {WEATHER_OPTIONS.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
+        </div>
 
       {isSceneBusy ? (
         <div
@@ -2057,176 +1822,6 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
         </div>
       ) : null}
 
-      <div
-        data-ui-panel="desktop-simulation-clock"
-        className={`absolute left-3 top-3 z-10 w-[min(calc(100vw-1.5rem),320px)] rounded-2xl border border-white/10 bg-slate-950/84 p-3 text-white shadow-2xl backdrop-blur-md lg:left-4 lg:top-4 lg:w-[320px] lg:p-4 ${isMapFocusMode ? "hidden" : ""}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className={PANEL_EYEBROW_CLASS}>실시간 입력</p>
-            <div className="mt-1 text-lg font-semibold text-slate-50">
-              {liveInputTitle}
-            </div>
-            <div className="mt-1 text-[11px] leading-5 text-slate-400">
-              {liveInputSummary || "강남권 주요 생활권과 날씨를 실시간으로 확인합니다."}
-            </div>
-          </div>
-          <span className={panelBadgeClass(circumstanceMode === "live")}>
-            {circumstanceMode === "live" ? "자동 연동" : "수동 설정"}
-          </span>
-        </div>
-
-        <div className="mt-3 min-w-0">
-          <span
-            className={`${liveSourceTokenClass} text-[11px] font-medium`}
-            title={liveCoverageTitle}
-          >
-            {liveSourceTokenText}
-          </span>
-        </div>
-
-        <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-2">
-          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
-            <div className="text-slate-500">현재 시각</div>
-            <div className="mt-1 font-semibold tabular-nums text-slate-100">
-              {formattedSimulationTime}
-            </div>
-            <div className="mt-0.5 text-[10px] text-slate-500">
-              {formattedSimulationDate} · {simulationTimeBand}
-            </div>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
-            <div className="text-slate-500">현재 날씨</div>
-            <div className="mt-1 font-semibold text-slate-100">
-              {liveWeatherSummary}
-            </div>
-            <div className="mt-0.5 text-[10px] text-slate-500">
-              {liveObservationLabel ?? "관측 기준 확인 중"}
-            </div>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
-            <div className="text-slate-500">관찰 범위</div>
-            <div className="mt-1 font-semibold text-slate-100">
-              {MAP_SCOPE_LABEL}
-            </div>
-            <div className="mt-0.5 text-[10px] text-slate-500">
-              {primaryLiveArea?.areaName ?? "강남권 주요 생활권"}
-            </div>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2">
-            <div className="text-slate-500">연결 상태</div>
-            <div className="mt-1 font-semibold text-slate-100">
-              {telemetryFrame ? telemetryStatusLabel : liveStatusLabel}
-            </div>
-            <div className="mt-0.5 text-[10px] text-slate-500">
-              {telemetryFrame ? telemetryStatusDetail : (liveLatencyLabel ?? "반영 시차 확인 중")}
-            </div>
-          </div>
-        </div>
-
-        {forecastSnapshotSummary ? (
-          <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/[0.06] px-3 py-2 text-xs leading-5 text-slate-300">
-            <span className="font-medium text-amber-200">예측 값은 저장 스냅샷</span>
-            <div className="mt-1 text-[11px] text-slate-300">
-              {forecastSnapshotSummary}
-              {isForecastSnapshotStale ? " · 현재 기준 예측 아님" : ""}
-              {isForecastLowConfidence ? " · 신뢰도 낮음" : ""}
-            </div>
-          </div>
-        ) : null}
-
-        <button
-          type="button"
-          onClick={() => setIsScenarioControlsExpanded((current) => !current)}
-          className="mt-3 flex w-full items-center justify-between rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-left text-xs text-slate-300 transition hover:border-white/20 hover:bg-white/[0.05]"
-          aria-expanded={isScenarioControlsExpanded}
-        >
-          <div>
-            <div className="font-semibold text-slate-100">시뮬레이션 조건</div>
-            <div className="mt-0.5 text-[10px] text-slate-500">
-              날짜·시간·날씨를 직접 설정합니다.
-            </div>
-          </div>
-          {isScenarioControlsExpanded ? (
-            <ChevronUp className="h-4 w-4 text-slate-400" aria-hidden />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden />
-          )}
-        </button>
-
-        {isScenarioControlsExpanded ? (
-          <div className="mt-3 rounded-2xl border border-white/10 bg-slate-950/72 p-3">
-            <div className="grid grid-cols-2 gap-2">
-              {circumstanceOptions.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  onClick={() => setCircumstanceMode(option.id)}
-                  className={`rounded-xl border px-3 py-2 text-left text-xs transition ${panelSelectableClass(
-                    circumstanceMode === option.id,
-                  )}`}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-              <label className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                날짜
-                <input
-                  type="date"
-                  value={simulationDate}
-                  onChange={(event) => {
-                    setCircumstanceMode("specific");
-                    setSimulationDate(event.target.value);
-                  }}
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
-                  aria-label="운영 지도 기준 날짜"
-                />
-              </label>
-              <label className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                시간
-                <input
-                  type="time"
-                  step={300}
-                  value={formattedSimulationTime}
-                  onChange={(event) => {
-                    const nextMinutes = parseTimeInput(event.target.value);
-                    if (nextMinutes === null) {
-                      return;
-                    }
-                    setCircumstanceMode("specific");
-                    setSimulationTimeMinutes(nextMinutes);
-                  }}
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
-                  aria-label="운영 지도 기준 시간"
-                />
-              </label>
-            </div>
-
-            <label className="mt-3 block text-[10px] uppercase tracking-[0.14em] text-slate-500">
-              날씨 조건
-              <select
-                value={weatherMode}
-                onChange={(event) => {
-                  setCircumstanceMode("specific");
-                  setWeatherMode(event.target.value as WeatherMode);
-                }}
-                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
-                aria-label="운영 지도 날씨 조건"
-              >
-                {WEATHER_OPTIONS.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        ) : null}
-      </div>
-
       {isSidebarVisible ? (
         <button
           type="button"
@@ -2243,254 +1838,204 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
         >
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <p className={PANEL_EYEBROW_CLASS}>운영 현황</p>
+            <p className={PANEL_EYEBROW_CLASS}>수요 예측</p>
             <h2 className="mt-1 text-xl font-semibold leading-tight text-slate-50">
-              역삼권 운영 패널
+              동별 24시간 택시 수요
             </h2>
             <p className="mt-1 text-xs leading-5 text-slate-500">
-              실시간 교통·혼잡 입력 기반 역삼권 운영 현황
+              {forecastDongName} · {weekdayLabel(forecastWeekday)}요일 · 0-23시
             </p>
           </div>
           <span
             className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${operationalBadgeClass}`}
           >
-            {operationalBadgeText}
+            {demandFetchBadgeText}
           </span>
         </div>
 
-        <AnalysisStatusBadge />
-
-
-        <div className={`mt-3 ${PANEL_CARD_CLASS}`}>
+        <div
+          className={`mt-4 ${PANEL_CARD_CLASS} p-4`}
+          data-ui-panel="hourly-demand-forecast"
+        >
           <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className={PANEL_SECTION_LABEL_CLASS}>실시간 공개데이터</div>
-              <div className="mt-1 text-sm font-semibold text-slate-100">
-                {primaryLiveArea?.areaName ?? "서울 공개데이터 확인 중"}
-              </div>
-              <div className="mt-0.5 text-[11px] leading-5 text-slate-500">
-                {liveObservationLabel ?? "관측 기준 시각을 확인하는 중입니다."}
-              </div>
-            </div>
-            <span
-              className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] ${
-                liveData?.meta.isPartial
-                  ? "border-amber-300/25 bg-amber-300/[0.08] text-amber-200"
-                  : isLiveFresh
-                  ? "border-emerald-400/25 bg-emerald-400/[0.08] text-emerald-300"
-                  : liveDataStatus === "error"
-                    ? "border-rose-400/25 bg-rose-400/[0.08] text-rose-300"
-                    : "border-white/10 bg-white/[0.05] text-slate-400"
-              }`}
-            >
-              {liveStatusLabel}
-            </span>
-          </div>
-
-          {liveData && primaryLiveArea ? (
-            <>
-              <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-[1.08fr_0.92fr]">
-                <div className="rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-                  <div className="text-slate-500">생활인구</div>
-                  <div className="mt-1 truncate font-semibold tabular-nums text-slate-100">
-                    {formatLivePopulation(primaryLiveArea)}
-                  </div>
-                </div>
-                <div className="rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-                  <div className="text-slate-500">혼잡 / 교통</div>
-                  <div className="mt-1 truncate font-semibold text-slate-100">
-                    {primaryLiveArea.congestionLevel} ·{" "}
-                    {primaryLiveArea.trafficIndex || "정보 없음"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.045] px-3 py-2 text-[11px] leading-5 text-cyan-50/80">
-                날씨 {formatLiveWeather(
-                  liveData.weather.tempC,
-                  liveData.weather.precipitationType,
-                )}
-              </div>
-
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {topLiveAreas.map((area) => (
-                  <span
-                    key={area.areaName}
-                    className="rounded-full border border-white/10 bg-white/[0.035] px-2.5 py-1 text-[10px] text-slate-400"
-                  >
-                    {area.areaName} {formatLivePopulation(area)}
-                  </span>
-                ))}
-              </div>
-
-              <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] leading-5 text-slate-500">
-                {liveMetaSummary.map((item) => (
-                  <span
-                    key={item}
-                    title={item.includes("실시간 반영") ? liveCoverageTitle : undefined}
-                    className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/[0.035] px-2 py-0.5"
-                  >
-                    {item}
-                  </span>
-                ))}
-                {liveLatencyLabel ? (
-                  <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 ${liveLatencyBadgeClass}`}>
-                    {liveLatencyLabel}
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="mt-2 text-[11px] leading-5 text-slate-500">
-                공개데이터 특성상 1~2시간 반영 시차가 있을 수 있습니다.
-              </div>
-            </>
-          ) : (
-            <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[11px] leading-5 text-slate-500">
-              강남역·역삼역·선릉역 등 주변 실시간 생활인구, 혼잡도, 날씨를
-              불러오는 중입니다.
-            </div>
-          )}
-        </div>
-
-        {forecastSnapshotSummary ? (
-          <div className="mt-3 rounded-xl border border-amber-300/15 bg-amber-300/[0.05] px-3 py-2 text-[11px] leading-5 text-slate-400">
-            <span className="font-medium text-amber-200">
-              보조 예측 입력
-            </span>
-            <div className="mt-1">
-              {forecastSnapshotSummary}
-              {forecastResult?.weather ? ` · ${forecastResult.weather}` : ""}
-              {forecastAverageConfidence != null ? (
-                <> · 평균 신뢰도 {Math.round(forecastAverageConfidence * 100)}%</>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-
-        {selectedPoi ? (
-          <div
-            className={`mt-3 ${PANEL_CARD_CLASS}`}
-            data-ui-panel="poi-detail-panel"
-          >
-            <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex items-center gap-2">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/[0.08] text-cyan-100">
+                <LineChart className="h-4 w-4" aria-hidden="true" />
+              </span>
               <div className="min-w-0">
-                <div className={PANEL_SECTION_LABEL_CLASS}>현장 정보</div>
-                <div className="mt-1 truncate text-sm font-semibold text-slate-100">
-                  {selectedPoi.poi_name}
-                </div>
-                <div className="mt-0.5 truncate text-[11px] text-slate-500">
-                  {selectedPoi.coverage_dong ?? "담당 동 미지정"} ·{" "}
-                  {categoryLabel(selectedPoi.category)}
+                <div className={PANEL_SECTION_LABEL_CLASS}>수요 곡선</div>
+                <div className="mt-0.5 truncate text-sm font-semibold text-slate-100">
+                  생활인구 예측치 × r
                 </div>
               </div>
-              <span
-                className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                  (selectedPoi.poi_pressure_score ?? 0) >= 0.72
-                    ? "border-rose-400/25 bg-rose-400/[0.08] text-rose-300"
-                    : (selectedPoi.poi_pressure_score ?? 0) >= 0.56
-                      ? "border-amber-300/25 bg-amber-300/[0.08] text-amber-200"
-                      : "border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-200"
-                }`}
+            </div>
+            <span className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-300">
+              24H
+            </span>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-slate-500">
+              동
+              <select
+                value={forecastDongName}
+                onChange={(event) => setForecastDongName(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
+                aria-label="수요 예측 행정동"
               >
-                  {demandLevelLabel(selectedPoi.poi_pressure_score ?? 0)}
+                {TARGET_DONGS.map((dongName) => (
+                  <option key={dongName} value={dongName}>
+                    {dongName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-[10px] uppercase tracking-[0.14em] text-slate-500">
+              요일
+              <select
+                value={forecastWeekday}
+                onChange={(event) =>
+                  setForecastWeekday(event.target.value as ForecastWeekdayId)
+                }
+                className="mt-1 w-full rounded-xl border border-white/10 bg-slate-900/70 px-2.5 py-2 text-xs text-slate-100 outline-none transition focus:border-cyan-400/40"
+                aria-label="수요 예측 요일"
+              >
+                {FORECAST_WEEKDAYS.map((weekday) => (
+                  <option key={weekday.id} value={weekday.id}>
+                    {weekday.label}요일
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="mt-4 grid grid-cols-3 divide-x divide-white/10 rounded-xl border border-white/10 bg-white/[0.035] text-center">
+            <div className="px-2 py-2">
+              <div className="text-[10px] text-slate-500">피크</div>
+              <div className="mt-1 font-semibold tabular-nums text-slate-100">
+                {selectedPeakDemand.hour}시
+              </div>
+            </div>
+            <div className="px-2 py-2">
+              <div className="text-[10px] text-slate-500">수요</div>
+              <div className="mt-1 font-semibold tabular-nums text-rose-100">
+                {selectedPeakDemand.demandPred.toLocaleString("ko-KR")}
+              </div>
+            </div>
+            <div className="px-2 py-2">
+              <div className="text-[10px] text-slate-500">r</div>
+              <div className="mt-1 font-semibold tabular-nums text-cyan-100">
+                {selectedForecastRLabel}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-4 overflow-hidden rounded-xl border border-white/10 bg-[#07111c]">
+            <svg
+              viewBox={`0 0 ${demandChart.width} ${demandChart.height}`}
+              role="img"
+              aria-label={`${forecastDongName} ${weekdayLabel(forecastWeekday)}요일 시간대별 택시 수요 예측`}
+              className="block h-auto w-full"
+            >
+              <defs>
+                <linearGradient id="demandCurveFill" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="rgba(34,211,238,0.32)" />
+                  <stop offset="100%" stopColor="rgba(34,211,238,0)" />
+                </linearGradient>
+              </defs>
+              <rect
+                x="0"
+                y="0"
+                width={demandChart.width}
+                height={demandChart.height}
+                fill="#07111c"
+              />
+              {demandChart.yTicks.map((tick) => (
+                <g key={tick.value}>
+                  <line
+                    x1={demandChart.paddingLeft}
+                    y1={tick.y}
+                    x2={demandChart.width - 12}
+                    y2={tick.y}
+                    stroke="rgba(148,163,184,0.16)"
+                    strokeWidth="0.8"
+                  />
+                  <text
+                    x={demandChart.paddingLeft - 8}
+                    y={tick.y + 3}
+                    textAnchor="end"
+                    fill="rgba(148,163,184,0.74)"
+                    fontSize="8"
+                  >
+                    {tick.value}
+                  </text>
+                </g>
+              ))}
+              {demandChart.xTicks.map((tick) => (
+                <g key={tick.hour}>
+                  <line
+                    x1={tick.x}
+                    y1={demandChart.baseY}
+                    x2={tick.x}
+                    y2={demandChart.baseY + 4}
+                    stroke="rgba(148,163,184,0.35)"
+                    strokeWidth="0.8"
+                  />
+                  <text
+                    x={tick.x}
+                    y={demandChart.baseY + 16}
+                    textAnchor="middle"
+                    fill="rgba(148,163,184,0.78)"
+                    fontSize="8"
+                  >
+                    {tick.hour}
+                  </text>
+                </g>
+              ))}
+              <path d={demandChart.areaPath} fill="url(#demandCurveFill)" />
+              <path
+                d={demandChart.trendPath}
+                fill="none"
+                stroke="#fda4af"
+                strokeDasharray="4 4"
+                strokeLinecap="round"
+                strokeWidth="1.6"
+                opacity="0.9"
+              />
+              <path
+                d={demandChart.linePath}
+                fill="none"
+                stroke="#22d3ee"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2.4"
+              />
+              <circle
+                cx={demandChart.peakX}
+                cy={demandChart.peakY}
+                r="4"
+                fill="#fff7ed"
+                stroke="#fb7185"
+                strokeWidth="1.6"
+              />
+            </svg>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-slate-500">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-4 rounded-full bg-cyan-300" />
+                예측 수요
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-0 w-4 border-t border-dashed border-rose-300" />
+                추세
               </span>
             </div>
-
-            <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-2">
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-                <div className="text-slate-500">현재 인구</div>
-                <div className="mt-1 truncate font-semibold tabular-nums text-slate-100">
-                  {formatPoiPopulationRange(selectedPoi)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-                <div className="text-slate-500">혼잡 / 속도</div>
-                <div className="mt-1 truncate font-semibold text-slate-100">
-                  {selectedPoi.current_congestion_level ?? "-"} ·{" "}
-                  {selectedPoi.current_traffic_speed_kmh == null
-                    ? "-"
-                    : `${selectedPoi.current_traffic_speed_kmh}km/h`}
-                </div>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-                <div className="text-slate-500">관측 기준</div>
-                <div className="mt-1 truncate font-semibold text-slate-100">
-                  {formatKstDateTime(selectedPoi.observed_at)}
-                </div>
-              </div>
-              <div className="rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2">
-                <div className="text-slate-500">담당 동</div>
-                <div className="mt-1 truncate font-semibold text-slate-100">
-                  {selectedPoi.coverage_dong ?? "미매핑"}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-2 rounded-xl border border-cyan-300/15 bg-cyan-300/[0.045] px-3 py-2 text-[11px] leading-5 text-cyan-50/80">
-              서울 공개데이터 · 관측 {formatKstDateTime(selectedPoi.observed_at)} ·{" "}
-              {selectedPoi.current_precipitation_type ?? "강수 없음"}
-            </div>
-
-            {selectedPoiGrounding ? (
-              <div className="mt-2 rounded-xl border border-fuchsia-300/15 bg-fuchsia-300/[0.05] px-3 py-2 text-[11px] leading-5 text-fuchsia-50/80">
-                {selectedPoi.coverage_dong} · 승차대 {selectedPoiGrounding.taxiStandCount}개 ·{" "}
-                {hotspotTierLabel(selectedPoiGrounding.reportHotspotTier)} ·{" "}
-                {selectedPoiGrounding.groundingNote}
-              </div>
-            ) : null}
-
-            <div className="mt-2 grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              {sortedMapPoiRows.slice(0, 6).map((poi) => {
-                const isSelected = poi.poi_code === selectedPoi.poi_code;
-                return (
-                  <button
-                    key={poi.poi_code}
-                    type="button"
-                    data-poi-code={poi.poi_code}
-                    onClick={() => handlePoiSelect(poi.poi_code)}
-                    className={`rounded-xl border px-2.5 py-2 text-left text-[11px] transition ${
-                      isSelected
-                        ? "border-cyan-300/35 bg-cyan-300/[0.1] text-cyan-50"
-                        : "border-white/10 bg-white/[0.035] text-slate-400 hover:border-white/20 hover:bg-white/[0.06] hover:text-slate-100"
-                    }`}
-                  >
-                    <div className="truncate font-semibold">{poi.poi_name}</div>
-                    <div className="mt-0.5 text-[10px] tabular-nums text-slate-500">
-                      {demandLevelLabel(poi.poi_pressure_score ?? 0)}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
-        <div className={`mt-4 ${PANEL_CARD_CLASS} py-3`}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className={PANEL_SECTION_LABEL_CLASS}>실시간 커버리지</div>
-            </div>
-            <span className="text-[11px] tabular-nums text-slate-500">
-              {liveCoverageLabel ?? "확인 중"}
+            <span className="tabular-nums">
+              평균 {selectedAverageDemand.toLocaleString("ko-KR")} · 추천{" "}
+              {selectedForecastDecision?.recommended_taxis ?? "-"}대
             </span>
-          </div>
-          <div className="mt-2 grid grid-cols-1 gap-2 text-[11px] sm:grid-cols-2">
-            {sortedMapPoiRows.slice(0, 4).map((poi) => (
-              <div
-                key={poi.poi_code}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"
-              >
-                <div className="truncate font-semibold text-slate-100">
-                  {poi.poi_name}
-                </div>
-                <div className="mt-0.5 text-[10px] text-slate-500">
-                  {poi.coverage_dong ?? "미매핑"} · {formatKstClock(poi.observed_at)}
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-2 text-[11px] leading-5 text-slate-500">
-            서울 공개데이터 실시간 수신 현황입니다. 연결 실패 시 이전 데이터로 유지됩니다.
           </div>
         </div>
 
@@ -2500,9 +2045,9 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
               <div className={PANEL_SECTION_LABEL_CLASS}>미니맵</div>
             </div>
             <div className="text-right text-[11px] text-slate-500">
-              현재 위치
+              선택 동
               <div className="mt-0.5 font-medium text-slate-300">
-                {demandMiniMap?.focusLabel ?? "지도 로딩 중"}
+                {forecastDongName}
               </div>
             </div>
           </div>
@@ -2525,12 +2070,12 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                 <rect x="0" y="0" width="100" height="100" fill="#07111c" />
                 {demandMiniMap.regions.map((region) => (
                   <g key={`${region.name}-shape`}>
-                    <path
-                      d={region.path}
-                      fill={demandFillForScore(region.score)}
-                      stroke={demandStrokeForScore(region.score)}
-                      strokeWidth={region.score >= 0.55 ? 0.7 : 0.42}
-                    />
+	                    <path
+	                      d={region.path}
+	                      fill={demandFillForScore(region.score)}
+	                      stroke={region.isSelected ? "#e0f2fe" : demandStrokeForScore(region.score)}
+	                      strokeWidth={region.isSelected ? 1.25 : region.score >= 0.55 ? 0.7 : 0.42}
+	                    />
                     <title>
                       {region.name} 운영 신호 {Math.round(region.score * 100)}
                     </title>
@@ -2567,7 +2112,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                   </g>
                 ) : null}
                 {demandMiniMap.regions.map((region) => {
-                  const dispatchIcon = dispatchMiniMapIcon(region.dispatchActionLevel);
+                  const pressureIcon = pressureMiniMapIcon(region.pressureLevel);
                   return (
                     <g key={`${region.name}-label`} pointerEvents="none">
                       <text
@@ -2585,13 +2130,13 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                       >
                         {region.name}
                       </text>
-                      {dispatchIcon ? (
+                      {pressureIcon ? (
                         <text
                           x={region.labelX + 7.2}
                           y={region.labelY - 4.1}
                           textAnchor="middle"
                           dominantBaseline="central"
-                          fill={dispatchMiniMapIconColor(region.dispatchActionLevel)}
+                          fill={pressureMiniMapIconColor(region.pressureLevel)}
                           fontSize="3.3"
                           fontWeight="800"
                           paintOrder="stroke"
@@ -2599,7 +2144,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
                           strokeWidth="0.64"
                           strokeLinejoin="round"
                         >
-                          {dispatchIcon}
+                          {pressureIcon}
                         </text>
                       ) : null}
                     </g>
@@ -2717,258 +2262,13 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
               혼잡 지점
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full border border-white bg-transparent" />
-              선택 지점
+              <span className="h-2.5 w-2.5 rounded-sm border border-white bg-transparent" />
+              선택 동
             </span>
-            <span>지점 선택 시 3D 카메라가 해당 위치로 이동합니다</span>
+            <span>POI {mapPoiFeatureRows.length}개</span>
           </div>
         </div>
 
-        <div className={`mt-3 ${PANEL_CARD_CLASS}`}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <div className={PANEL_SECTION_LABEL_CLASS}>주요 관찰 지역</div>
-            </div>
-            <span className={panelBadgeClass(true)}>
-              {topDemandScoreLabel}점
-            </span>
-          </div>
-
-          <div className="mt-2 space-y-1.5">
-            {rankedForecastDongs.slice(0, 3).map((dong, index) => (
-              <div
-                key={dong.dongName}
-                className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] text-slate-500">
-                        #{index + 1}
-                      </span>
-                      <span className="font-semibold text-slate-100">
-                        {dong.dongName}
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        {demandLevelLabel(dong.relativeScore)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      <span className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-400">
-                        승차대 {dong.taxiStandCount ?? 0}개
-                      </span>
-                      <span className="inline-flex whitespace-nowrap rounded-full border border-fuchsia-300/15 bg-fuchsia-300/[0.06] px-2 py-0.5 text-[10px] text-fuchsia-100/80">
-                        {hotspotTierLabel(dong.reportHotspotTier)}
-                      </span>
-                      {dong.source === "live" ? (
-                        <>
-                          <span className="inline-flex whitespace-nowrap rounded-full border border-cyan-300/20 bg-cyan-300/[0.06] px-2 py-0.5 text-[10px] text-cyan-100">
-                            관측 지점 {dong.livePoiCount ?? 0}개
-                          </span>
-                          {dong.liveCongestionLevel ? (
-                            <span className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-400">
-                              {dong.liveCongestionLevel}
-                            </span>
-                          ) : null}
-                        </>
-                      ) : dong.source === "model" ? (
-                        <span className="inline-flex whitespace-nowrap rounded-full border border-emerald-400/20 bg-emerald-400/[0.06] px-2 py-0.5 text-[10px] text-emerald-400/80">
-                          신뢰도 {Math.round((dong.confidence ?? 0) * 100)}%
-                        </span>
-                      ) : (
-                        demandReasonsFor(dong).map((reason) => (
-                          <span
-                            key={reason}
-                            className="inline-flex whitespace-nowrap rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] text-slate-400"
-                          >
-                            {reason}
-                          </span>
-                        ))
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-lg font-semibold tabular-nums text-rose-100">
-                      {Math.round(dong.relativeScore * 100)}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/8">
-                  <div
-                    className="h-full rounded-full bg-rose-400"
-                    style={{
-                      width: `${Math.max(4, Math.round(dong.relativeScore * 100))}%`,
-                    }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {sortedDispatchDecisions.length > 0 ? (
-          <div className={`mt-3 ${PANEL_CARD_CLASS}`}>
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className={PANEL_SECTION_LABEL_CLASS}>실시간 수급 불균형 및 동적 배차</div>
-                <div className="mt-1 text-sm font-semibold text-slate-100">
-                  택시 수요 집중 (Surge Pricing) 지역
-                </div>
-              </div>
-              <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[10px] ${operationalBadgeClass}`}>
-                {operationalBadgeText}
-              </span>
-            </div>
-
-            <div className="mt-2 space-y-1.5">
-              {sortedDispatchDecisions.slice(0, 5).map((decision, index) => {
-                const scorePercent = Math.round((decision.imbalance_score ?? 0) * 100);
-                const statusGrade = monitoringStatusGrade(decision.action_level);
-                return (
-                  <div
-                    key={decision.dong_name}
-                    className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 transition-colors hover:bg-white/[0.07]"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold tracking-tighter text-slate-600">
-                            #{index + 1}
-                          </span>
-                          <span className="text-sm font-bold text-slate-100">
-                            {decision.dong_name}
-                          </span>
-                        </div>
-                        
-                        <div className="mt-2.5 flex items-center gap-3">
-                          <div className="relative h-1 w-full max-w-[80px] overflow-hidden rounded-full bg-slate-800">
-                            <div 
-                              className={`h-full rounded-full transition-all duration-700 ${
-                                decision.action_level === 'high' ? 'bg-red-500' :
-                                decision.action_level === 'medium' ? 'bg-amber-400' :
-                                'bg-cyan-500'
-                              }`}
-                              style={{ width: `${Math.max(8, scorePercent)}%` }}
-                            />
-                          </div>
-                          <span className={`text-[11px] font-black tracking-tight ${dispatchActionTextClass(decision.action_level)}`}>
-                            {scorePercent}%
-                          </span>
-                        </div>
-
-                        <div className="mt-2.5 flex flex-wrap gap-2 text-[10px]">
-                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-700/50 bg-slate-800/40 px-1.5 py-0.5 font-medium text-slate-300">
-                            <svg className="h-3 w-3 text-cyan-400/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            잠재 수요 {decision.live_population_mid ? `${(decision.live_population_mid / 10000).toFixed(1)}만명` : '집계중'}
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-700/50 bg-slate-800/40 px-1.5 py-0.5 font-medium text-slate-300">
-                            <svg className="h-3 w-3 text-amber-400/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                            </svg>
-                            도로 {decision.live_traffic_index || '정보없음'}
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-700/50 bg-slate-800/40 px-1.5 py-0.5 font-medium text-slate-300">
-                            <svg className="h-3 w-3 text-emerald-400/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            승차대 {decision.taxi_stand_count}개
-                          </span>
-                          <span className="inline-flex items-center gap-1 rounded-md border border-slate-700/50 bg-slate-800/40 px-1.5 py-0.5 font-medium text-slate-300">
-                            <svg className="h-3 w-3 text-fuchsia-300/80" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.959a1 1 0 00.95.69h4.162c.969 0 1.371 1.24.588 1.81l-3.367 2.446a1 1 0 00-.364 1.118l1.286 3.959c.3.921-.755 1.688-1.54 1.118l-3.367-2.446a1 1 0 00-1.176 0L7.123 18.986c-.784.57-1.838-.197-1.539-1.118l1.285-3.959a1 1 0 00-.363-1.118L3.14 9.386c-.783-.57-.38-1.81.588-1.81H7.89a1 1 0 00.951-.69l1.287-3.959z" />
-                            </svg>
-                            {hotspotTierLabel(decision.hotspot_tier)}
-                          </span>
-                        </div>
-                        <div className="mt-1.5 text-[10px] font-medium text-slate-500">
-                          {monitoringActionLabel(decision.action, decision.action_level)} · 추천 배차 {decision.recommended_taxis}대
-                        </div>
-                      </div>
-                      
-                      <div className="flex flex-col items-end gap-2">
-                        <span
-                          className={`inline-flex whitespace-nowrap rounded-md border px-1.5 py-0.5 text-[9px] font-black tracking-widest ${dispatchActionBadgeClass(
-                            decision.action_level,
-                          )}`}
-                        >
-                          {statusGrade}
-                        </span>
-                        <button className="rounded-full bg-white/5 p-1 text-slate-400 opacity-0 transition-all hover:bg-white/10 hover:text-white group-hover:opacity-100">
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-2 text-[11px] leading-5 text-slate-500">
-              실시간 공개데이터에 서울시 택시승차대 현황과 심야 택시 수요 리포트 기반 정적 priors를 더해 계산한 우선순위입니다.
-            </div>
-          </div>
-        ) : null}
-
-        <div className={`mt-3 ${PANEL_CARD_CLASS}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className={PANEL_SECTION_LABEL_CLASS}>지도 출처 / 신뢰도</div>
-              <div className="mt-1 text-sm font-semibold text-slate-100">
-                OSM 기반 디지털 트윈 프로토타입
-              </div>
-              <div className="mt-0.5 text-[11px] leading-5 text-slate-500">
-                실시간 공개데이터에 정적 택시 운영 근거를 더해 배차 판단을 안정화합니다.
-              </div>
-            </div>
-            <span className="inline-flex whitespace-nowrap rounded-full border border-cyan-400/20 bg-cyan-400/[0.06] px-2 py-0.5 text-[10px] text-cyan-200">
-              OpenStreetMap
-            </span>
-          </div>
-
-          <div className="mt-3 grid grid-cols-1 gap-2 text-[11px] leading-5 sm:grid-cols-2">
-            <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.045] px-3 py-2 text-emerald-100/80">
-              <span className="font-medium text-emerald-300">신뢰 높음</span>
-              <br />
-              행정동 경계, 주요 도로, 지하철역 좌표
-            </div>
-            <div className="rounded-xl border border-amber-300/15 bg-amber-300/[0.045] px-3 py-2 text-amber-100/75">
-              <span className="font-medium text-amber-200">시뮬레이션</span>
-              <br />
-              차선 수, 신호 주기, 실제 차량 궤적
-            </div>
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {mapEvidenceMetrics.map((metric) => (
-              <div
-                key={metric.label}
-                className="rounded-xl border border-white/10 bg-white/[0.035] px-2.5 py-2"
-              >
-                <div className="text-[10px] text-slate-500">{metric.label}</div>
-                <div className="mt-1 text-sm font-semibold tabular-nums text-slate-100">
-                  {metric.value}
-                </div>
-                <div className="mt-0.5 truncate text-[10px] text-slate-500">
-                  {metric.detail}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 text-[11px] leading-5 text-slate-500">
-            OpenStreetMap/Overpass에서 추출한 도로·건물·행정동 데이터를 기반으로 합니다. 히트맵은 도시 가독성을 위해 작은 행정동 조각을 단순화해 표시합니다.
-          </div>
-          <div className="mt-2 text-[11px] leading-5 text-slate-500">
-            강남역·역삼역·선릉역·신논현역 주변 주요 도로와 건물 위치를 기준으로 검증했습니다.
-          </div>
-          <div className="mt-2 rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2 text-[11px] leading-5 text-slate-400">
-            {MAP_GROUNDING_SOURCE_LABEL} 기반 정적 수요·공급 priors를 함께 사용합니다.
-          </div>
-        </div>
         </div>
       ) : null}
 

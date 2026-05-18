@@ -59,7 +59,7 @@ const initialSceneState: SceneState = {
   status: "loading",
   statusDetail: "OSM 지도 데이터 불러오는 중",
   loadingProgress: 0,
-  circumstanceMode: "live",
+  circumstanceMode: "specific",
   simulationDate: HYDRATION_SAFE_SIMULATION_CLOCK.dateIso,
   simulationTimeMinutes: HYDRATION_SAFE_SIMULATION_CLOCK.minutes,
   weatherMode: "clear",
