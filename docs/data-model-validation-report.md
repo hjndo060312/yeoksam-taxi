@@ -124,7 +124,7 @@ Colab 산출물:
 ```text
 data/colab/metrics.csv
 data/colab/feature_importance.csv
-data/colab/forecast_latest_model_backtest.json
+data/colab/backend_handoff_model_backtest.json
 data/colab/dong_demand_proxy_predictions_2025.csv
 data/colab/dong_demand_proxy_model.joblib
 ```
@@ -137,7 +137,7 @@ data/colab/dong_demand_proxy_model.joblib
 9f7de802846cec24ea5b6a516a6b58ba8262d4f3d9f19ce5efc3534b9c3f5f68  data/processed/features/dong_hour_features_v2_2023-01_2025-12.csv
 40261a0fdb465a7c7370fa4544f7bc449d6e24a466f5990969987cd0e66e5d31  data/colab/metrics.csv
 6bf80137892245105e9c650067aeb4da6846ed506cb222d4fbe2a6158f96b5e7  data/colab/feature_importance.csv
-ffbe599fc629e578ecaf800226c804d11d9e42d5ce927a50a827a5c2e421e1f6  data/colab/forecast_latest_model_backtest.json
+ffbe599fc629e578ecaf800226c804d11d9e42d5ce927a50a827a5c2e421e1f6  data/colab/backend_handoff_model_backtest.json
 839298ed32d0b35dec9dfd80abde1a4b7e059269d61afeeb97d128abcb6aa86e  data/colab/dong_demand_proxy_model.joblib
 ```
 
@@ -308,21 +308,12 @@ public/demand-guardrail-summary.json
 사용자가 날짜/시간 선택
 → 해당 시점의 9개 동 feature row 구성
 → 모델 예측
-→ 동별 score JSON 생성
-→ 지도 heatmap / 시간대별 그래프에 반영
+→ 백엔드 API 응답 생성
+→ 프론트의 지도 heatmap / 시간대별 그래프에 반영
 ```
 
-예측 JSON 생성 명령:
-
-```bash
-npm run model:predict:demand-proxy -- "2025-03-10 18:00" --out public/forecast/latest.json --strategy auto
-```
-
-구현 스크립트:
-
-```text
-scripts/predict_dong_demand_proxy.py
-```
+프론트 저장소는 예측 JSON 생성 명령이나 모델 스크립트를 더 이상 포함하지 않습니다.
+모델 학습, batch inference, 검증 CSV 생성은 백엔드/데이터 저장소에서 관리합니다.
 
 전략:
 

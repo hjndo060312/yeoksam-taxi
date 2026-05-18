@@ -187,7 +187,7 @@ data/processed/model/dong_demand_proxy_metrics.json
 data/processed/model/dong_demand_proxy_model.joblib
 data/processed/model/dong_demand_proxy_predictions_2025.csv
 data/processed/model/dong_demand_proxy_feature_importance.json
-data/processed/model/forecast_latest_model_backtest.json
+data/processed/model/backend_handoff_model_backtest.json
 ```
 
 각 파일 의미:
@@ -195,7 +195,7 @@ data/processed/model/forecast_latest_model_backtest.json
 - `dong_demand_proxy_model.joblib`: 학습된 scikit-learn Pipeline
 - `dong_demand_proxy_predictions_2025.csv`: 2025년 테스트 예측 결과
 - `dong_demand_proxy_feature_importance.json`: 어떤 feature가 예측에 중요했는지 확인하는 permutation importance
-- `forecast_latest_model_backtest.json`: 최신 feature row를 기준으로 지도에 넘길 수 있는 형태의 예측 JSON 샘플
+- `backend_handoff_model_backtest.json`: 최신 feature row를 기준으로 백엔드 API 응답 형태를 점검한 예측 JSON 샘플
 
 ## 10. Feature Importance 해석
 

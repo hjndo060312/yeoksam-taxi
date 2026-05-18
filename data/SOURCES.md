@@ -19,8 +19,8 @@ This repository keeps only lightweight runtime-facing data.
   - POI-level public snapshots used for live context
 - Seoul taxi stand open data
   - converted and committed as `public/taxi-stands.geojson`
-- small forecast and observability snapshots
-  - committed as runtime-facing JSON under `public/`
+- small frontend fallback constants
+  - committed in source only when needed for offline UI demos
 
 ## Off-Repo By Policy
 

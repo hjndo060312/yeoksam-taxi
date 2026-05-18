@@ -14,7 +14,7 @@ This project was originally born out of a capstone specification for taxi-demand
 ## 📂 Project Structure
 
 - `src/`: The Next.js application, React components, and Three.js (`MapSimulatorSceneRuntime.tsx`) scene rendering.
-- `public/`: Pre-processed OSM geometry, geojson layers, and fallback data snapshots for offline fallback.
+- `public/`: Pre-processed OSM geometry, GeoJSON layers, and static assets for the map runtime.
 - `scripts/osm/`: Utilities to regenerate local OSM-derived geometry.
 - `data/config/`: Configuration files and targeted POI mappings.
 
@@ -32,18 +32,14 @@ npm run dev
 
 The application will be available at `http://localhost:3000`.
 
-## 🔮 Offline Forecast Pipeline
+## 🔮 Backend Forecast Handoff
 
-The frontend reads `public/forecast/latest.json` when a model snapshot is
-available. The repo now includes an offline training + batch inference flow for
-the `strict_calendar_weather_static` feature set under `scripts/forecast/`.
+Model training and batch inference live outside this frontend repository. The map
+can call a backend demand endpoint through `NEXT_PUBLIC_DEMAND_FORECAST_ENDPOINT`.
+When that endpoint is not configured or fails, the UI falls back to small bundled
+mock demand curves so the frontend remains demoable on its own.
 
-See `scripts/forecast/README.md` for:
-
-- training CSV contract
-- LightGBM/XGBoost-preferred training entrypoint
-- one-shot inference command
-- batch job that rewrites `public/forecast/latest.json`
+See `docs/forecast-contract.md` for the request and response shape.
 
 ## 🗺 Map Asset Refresh
 
