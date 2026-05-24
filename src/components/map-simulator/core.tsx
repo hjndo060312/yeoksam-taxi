@@ -501,7 +501,7 @@ export const EMPTY_TAXI_STAND_FEATURE_COLLECTION: TaxiStandFeatureCollection = {
   type: "FeatureCollection",
   features: [],
 };
-
+export type HotspotTimeTag = "commute" | "night" | "default";
 export type Hotspot = {
   id: string;
   nodeKey: string;
@@ -511,6 +511,7 @@ export type Hotspot = {
   point: THREE.Vector3;
   label: string;
   roadName: string | null;
+  timeTag: HotspotTimeTag;
 };
 
 export type SimulationAssetKey = keyof SimulationMeta["assets"];
@@ -752,6 +753,7 @@ export function sharedCallerHeadMaterial() {
 export type BuildingMass = {
   id: string;
   label: string | null;
+  kind: string | null;
   height: number;
   position: THREE.Vector3;
   width: number;
@@ -3417,6 +3419,7 @@ export function buildBuildingMasses(
       return {
         id: `building-${index}`,
         label: feature.properties.label,
+        kind: feature.properties.kind ?? null,
         height: Math.max(2, heightMeters * BUILDING_HEIGHT_SCALE),
         position: footprintCenter,
         width,
@@ -4778,22 +4781,89 @@ export function selectTaxiHotspotNodeIndex(
 
   return bestScore === Number.POSITIVE_INFINITY ? 1 : bestIndex;
 }
+const COMMUTE_KINDS = new Set([
+  "office", "commercial", "retail", "construction",
+]);
+const NIGHT_KINDS = new Set([
+  "hotel",
+]);
+
+function poiProximityBonus(
+  position: THREE.Vector3,
+  buildings: BuildingMass[],
+  targetKinds: Set<string>,
+  radius = 80,
+): number {
+  let bonus = 0;
+  for (const b of buildings) {
+    if (!b.kind || !targetKinds.has(b.kind)) continue;
+    const dist = position.distanceTo(b.position);
+    if (dist < radius) bonus += 1 - dist / radius;
+  }
+  return bonus;
+}
 
 export function buildTaxiHotspots(
   routes: RouteTemplate[],
   buildings: BuildingMass[],
   graph: RoadGraph,
   signalByKey: Map<string, SignalData>,
+  transitLandmarks: TransitLandmark[],
 ) {
-  return routes.flatMap((route, routeIndex) => {
-    if (route.nodes.length < 4) {
-      return [] as Hotspot[];
-    }
+  const MIN_DISTANCE = 60;
+  const placedByTag = new Map<HotspotTimeTag, THREE.Vector3[]>([
+    ["commute", []],
+    ["night",   []],
+    ["default", []],
+  ]);
 
+  function isTooClose(tag: HotspotTimeTag, position: THREE.Vector3) {
+    return (placedByTag.get(tag) ?? []).some(
+      (p) => p.distanceTo(position) < MIN_DISTANCE,
+    );
+  }
+
+  const subwayPositions = transitLandmarks
+    .filter((l) => l.category === "subway_station")
+    .map((l) => l.position);
+
+  function subwayProximityBonus(position: THREE.Vector3, radius = 100): number {
+    let bonus = 0;
+    for (const sp of subwayPositions) {
+      const dist = position.distanceTo(sp);
+      if (dist < radius) bonus += 1 - dist / radius;
+    }
+    return bonus;
+  }
+
+  function tagForRoute(route: RouteTemplate): HotspotTimeTag {
+    let commuteScore = 0;
+    let nightScore = 0;
+    for (const node of route.nodes) {
+      commuteScore += poiProximityBonus(node.point, buildings, COMMUTE_KINDS);
+      nightScore +=
+        poiProximityBonus(node.point, buildings, NIGHT_KINDS) +
+        subwayProximityBonus(node.point);
+    }
+    if (commuteScore > nightScore && commuteScore > 0.5) return "commute";
+    if (nightScore > commuteScore && nightScore > 0.5) return "night";
+    return "default";
+  }
+
+  const result: Hotspot[] = [];
+
+  for (const [routeIndex, route] of routes.entries()) {
+    if (route.nodes.length < 4) continue;
+
+    const timeTag = tagForRoute(route);
     const fractions =
-      route.totalLength > 180 ? [0.14, 0.38, 0.63, 0.86] : [0.22, 0.58, 0.84];
+      route.totalLength > 180
+        ? [0.14, 0.38, 0.63, 0.86]
+        : [0.22, 0.58, 0.84];
+
     const usedNodeKeys = new Set<string>();
-    return fractions.map((fraction, hotspotIndex) => {
+
+    for (const [hotspotIndex, fraction] of fractions.entries()) {
       const targetDistance = route.totalLength * fraction + routeIndex * 4.5;
       const nodeIndex = selectTaxiHotspotNodeIndex(
         route,
@@ -4804,10 +4874,9 @@ export function buildTaxiHotspots(
       );
       usedNodeKeys.add(route.nodes[nodeIndex]!.key);
 
-      const currentPoint = route.nodes[nodeIndex].point;
+      const currentPoint  = route.nodes[nodeIndex].point;
       const previousPoint = route.nodes[Math.max(0, nodeIndex - 1)].point;
-      const nextPoint =
-        route.nodes[Math.min(route.nodes.length - 1, nodeIndex + 1)].point;
+      const nextPoint     = route.nodes[Math.min(route.nodes.length - 1, nodeIndex + 1)].point;
       const heading = nextPoint.clone().sub(previousPoint);
       if (heading.lengthSq() < 0.0001) {
         heading.set(0, 0, 1);
@@ -4815,30 +4884,27 @@ export function buildTaxiHotspots(
         heading.normalize();
       }
 
-      const lanePosition = offsetToRight(
-        currentPoint,
-        heading,
-        curbsideLaneOffset(route),
-      );
-      return {
+      const lanePosition = offsetToRight(currentPoint, heading, curbsideLaneOffset(route));
+
+      if (isTooClose(timeTag, lanePosition)) continue;
+      placedByTag.get(timeTag)!.push(lanePosition.clone());
+
+      result.push({
         id: `${route.id}-hotspot-${hotspotIndex}`,
         nodeKey: route.nodes[nodeIndex].key,
         routeId: route.id,
         distance: route.cumulative[nodeIndex],
         position: lanePosition.clone().setY(0.14),
         point: lanePosition.clone(),
-        label: hotspotLabelForRoute(
-          route,
-          lanePosition,
-          buildings,
-          hotspotIndex,
-        ),
+        label: hotspotLabelForRoute(route, lanePosition, buildings, hotspotIndex),
         roadName: route.name,
-      } satisfies Hotspot;
-    });
-  });
-}
+        timeTag,
+      } satisfies Hotspot);
+    }
+  }
 
+  return result;
+}
 export function buildTaxiStandHotspots(
   taxiStandLandmarks: TaxiStandLandmark[],
   routes: RouteTemplate[],
@@ -4892,6 +4958,7 @@ export function buildTaxiStandHotspots(
         point: stand.position.clone(),
         label: stand.name || "택시승차대",
         roadName: stand.roadAddress || best.route.name,
+        timeTag: "default" as HotspotTimeTag,
       } satisfies Hotspot;
     })
     .filter(Boolean) as Hotspot[];

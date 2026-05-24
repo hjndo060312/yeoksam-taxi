@@ -413,35 +413,36 @@ function parseTimeInput(value: string) {
 
 function buildStaticPoiFeatureRows() {
   const rows = [
-    ...poiConfig.context_pois.map((poi) => ({
-      code: poi.code,
-      name: poi.name,
-      coverageDong: poi.coverage_dong,
+    // 1단계: 메인 컨텍스트 POI 매핑
+    ...poiConfig.context_pois.map((poi: any) => ({
+      poi_code: poi.code,         // [수정] poi.id 또는 poi.poi_code에서 poi.code로 변경
+      poi_name: poi.name,
+      coverage_dong: poi.coverage_dong, // [수정] coverageDong에서 coverage_dong으로 변경
       category: poi.category,
-      lon: poi.lon,
-      lat: poi.lat,
+      lon: Number(poi.lon),       // [수정] 확실하게 숫자로 변환
+      lat: Number(poi.lat),       // [수정] 확실하게 숫자로 변환
     })),
-    ...poiConfig.supplemental_context_pois.map((poi) => ({
-      code: poi.id,
-      name: poi.name,
-      coverageDong: poi.coverage_dong,
+    // 2단계: 보조(supplemental) POI 매핑
+    ...((poiConfig as any).supplemental_context_pois ?? []).map((poi: any) => ({
+      poi_code: poi.id,           // 보조 데이터는 id를 poi_code로 사용
+      poi_name: poi.name,
+      coverage_dong: poi.coverage_dong,
       category: poi.category,
-      lon: poi.lon,
-      lat: poi.lat,
+      lon: Number(poi.lon),
+      lat: Number(poi.lat),
     })),
   ];
-  const rawScores = rows.map((poi) =>
-    contextPoiWeight(poi.category),
-  );
+
+  const rawScores = rows.map((poi) => contextPoiWeight(poi.category));
   const maxScore = Math.max(...rawScores, 1);
 
   return rows
     .map((poi, index) => {
       const contextScore = Math.round(((rawScores[index] ?? 0) / maxScore) * 1000) / 1000;
       return {
-        poi_code: poi.code,
-        poi_name: poi.name,
-        coverage_dong: poi.coverageDong,
+        poi_code: poi.poi_code,
+        poi_name: poi.poi_name,
+        coverage_dong: poi.coverage_dong,
         category: poi.category,
         lon: poi.lon,
         lat: poi.lat,
@@ -450,7 +451,6 @@ function buildStaticPoiFeatureRows() {
     })
     .sort((left, right) => right.context_score - left.context_score);
 }
-
 function mapToolButtonClass(active: boolean) {
   return `inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/45 ${
     active
@@ -641,15 +641,23 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   }, [activePoiCode, cameraMode, mapPoiFeatureRows, miniMapFocus, poiSpatialIndex]);
   const scenePoiFeatureRowsRef = useSyncRef(scenePoiFeatureRows);
 
+  // setStatus / setStatusDetail은 sceneSetters에서 비구조화된 참조로,
+  // 렌더마다 새 참조가 될 수 있어 useEffect 무한 루프를 유발할 수 있음.
+  // ref로 안정화하여 의존성 배열에서 제거.
+  const setStatusRef = useRef(setStatus);
+  const setStatusDetailRef = useRef(setStatusDetail);
+  useEffect(() => { setStatusRef.current = setStatus; }, [setStatus]);
+  useEffect(() => { setStatusDetailRef.current = setStatusDetail; }, [setStatusDetail]);
+
   const markSceneRendering = useCallback((detail: string) => {
-    setStatus("rendering");
-    setStatusDetail(detail);
-  }, [setStatus, setStatusDetail]);
+    setStatusRef.current("rendering");
+    setStatusDetailRef.current(detail);
+  }, []);
 
   const markSceneError = useCallback((detail: string) => {
-    setStatus("error");
-    setStatusDetail(detail);
-  }, [setStatus, setStatusDetail]);
+    setStatusRef.current("error");
+    setStatusDetailRef.current(detail);
+  }, []);
 
   useEffect(() => {
     labelRefreshRequestRef.current += 1;
@@ -716,13 +724,9 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
     return () => {
       cancelled = true;
     };
-  }, [
-    markSceneError,
-    markSceneRendering,
-    setData,
-    setLoadingProgress,
-    setStatusDetail,
-  ]);
+  // markSceneError, markSceneRendering은 이제 stable (deps 없는 useCallback).
+  // setStatusDetail은 ref를 통해 접근하므로 의존성에서 제거.
+  }, [markSceneError, markSceneRendering, setData, setLoadingProgress]);
 
   const scenarioMapCenter = useMemo(() => {
     const segments = data?.projectedRoadSegments;
@@ -758,7 +762,7 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   );
 
   useEffect(() => {
-    if (!DEMAND_API_ENDPOINT) {
+    if (!DEMAND_API_ENDPOINT || !selectedDongName) {
       return;
     }
 
@@ -991,35 +995,49 @@ export default function MapSimulator({ buildVersion }: MapSimulatorProps) {
   ]);
   const handlePoiSelect = useCallback((poiCode: string) => {
     const poi = mapPoiFeatureRows.find((row) => row.poi_code === poiCode);
-    setSelectedPoiCode(poiCode);
-    setIsSidebarCollapsed(false);
-    setIsMapFocusMode(false);
-    if (
-      data &&
-      poi &&
-      Number.isFinite(poi.lon) &&
-      Number.isFinite(poi.lat)
-    ) {
-      const projected = projectPoint(
-        [poi.lon as number, poi.lat as number],
-        data.center,
-      );
-      cameraFocusTargetRef.current = {
-        x: projected.x,
-        z: projected.z,
-        distance: 78,
-        pitch: 0.68,
-        label: poi.poi_name,
-      };
-      setCameraMode("drive");
+    if (poi) {
+      setSelectedPoiCode(poiCode);
+
+      // 동 정보가 있을 경우 동 이름 상태도 함께 업데이트
+      if (poi.coverage_dong) {
+        setSelectedDongName(poi.coverage_dong);
+      }
+
+      setIsSidebarCollapsed(false);
+      setIsMapFocusMode(false);
+
+      // 좌표 데이터가 유효한지 확인 후 카메라 이동
+      if (
+        data &&
+        typeof poi.lon === 'number' && 
+        typeof poi.lat === 'number'
+      ) {
+        const projected = projectPoint(
+          [poi.lon, poi.lat],
+          data.center,
+        );
+
+        cameraFocusTargetRef.current = {
+          x: projected.x,
+          z: projected.z,
+          distance: 78,
+          pitch: 0.68,
+          label: poi.poi_name,
+        };
+        setCameraMode("drive");
+      }
+    } else {
+      // poi를 찾지 못했을 경우 콘솔에 기록하여 디버깅 도움
+      console.warn(`해당 POI 코드를 찾을 수 없습니다: ${poiCode}`);
     }
   }, [
-    data,
-    mapPoiFeatureRows,
-    setCameraMode,
-    setIsMapFocusMode,
-    setIsSidebarCollapsed,
-    setSelectedPoiCode,
+    data, 
+    mapPoiFeatureRows, 
+    setCameraMode, 
+    setIsMapFocusMode, 
+    setIsSidebarCollapsed, 
+    setSelectedPoiCode, 
+    setSelectedDongName
   ]);
   const formattedSimulationTime = format24Hour(normalizedSimulationTimeMinutes);
   const formattedSimulationDate = formatDateLabel(simulationDate);

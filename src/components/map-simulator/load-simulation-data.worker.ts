@@ -214,7 +214,7 @@ async function loadSimulationData() {
   const trafficRoutes = buildTrafficRoutes(roads, center, signalByKey);
   const taxiRoutePool = loopRoutes
     .filter((route) => route.roadClass !== "local")
-    .slice(0, Math.max(MAX_TAXI_COUNT, 12));
+    .slice(0, Math.max(MAX_TAXI_COUNT*2, 24));
   const trafficRoutePool = trafficRoutes.slice(0, Math.max(MAX_TRAFFIC_COUNT, 20));
   if (!taxiRoutePool.length || !trafficRoutePool.length) {
     throw new Error("No drivable routes available for vehicle simulation");
@@ -231,13 +231,16 @@ async function loadSimulationData() {
     buildingMasses,
     graph,
     signalByKey,
+    transitLandmarks,
   );
   const taxiStandHotspotPool = buildTaxiStandHotspots(
     taxiStandLandmarks,
     taxiRoutePool,
   );
-  const hotspotPool =
-    taxiStandHotspotPool.length > 0 ? taxiStandHotspotPool : fallbackHotspotPool;
+const hotspotPool = [
+  ...taxiStandHotspotPool,
+  ...fallbackHotspotPool,
+];
   if (!hotspotPool.length) {
     throw new Error("No taxi hotspots available for taxi simulation");
   }

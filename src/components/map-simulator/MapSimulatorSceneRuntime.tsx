@@ -881,6 +881,17 @@ export default function MapSimulatorSceneRuntime({
     const taxiById = new Map<string, Vehicle>();
     const vehicleById = new Map<string, Vehicle>();
     const hotspotPool: Hotspot[] = data.hotspotPool;
+    function activeHotspots(minutes: number): Hotspot[] {
+  const hour = Math.floor(minutes / 60) % 24;
+  const isCommute = (hour >= 7 && hour < 9) || (hour >= 18 && hour < 20);
+  const isNight   = hour >= 23 || hour < 1;
+
+  return hotspotPool.filter((h) => {
+    if (isCommute) return h.timeTag === "commute" || h.timeTag === "default";
+    if (isNight)   return h.timeTag === "night"   || h.timeTag === "default";
+    return true;
+  });
+}
     let activePedestrians = 0;
     let crosswalkMaterial: THREE.MeshStandardMaterial | null = null;
     let stopLineMaterial: THREE.MeshStandardMaterial | null = null;
@@ -2273,7 +2284,7 @@ export default function MapSimulatorSceneRuntime({
       stopLineMesh.instanceMatrix.needsUpdate = true;
       scene.add(stopLineMesh);
 
-      const nextHotspotVisuals = hotspotPool.map((hotspot, index) => {
+      const nextHotspotVisuals = activeHotspots(simulationTimeRef.current).map((hotspot, index) => {
         const group = new THREE.Group();
         const baseColor = HOTSPOT_IDLE_COLORS[index % HOTSPOT_IDLE_COLORS.length]!;
         const hotspotRoute = taxiRouteById.get(hotspot.routeId);
@@ -2313,7 +2324,7 @@ export default function MapSimulatorSceneRuntime({
         );
         const glowMaterial = glow.material as THREE.MeshStandardMaterial;
         glow.position.y = 0.18;
-        glow.scale.setScalar(0.62);
+        glow.scale.setScalar(0.62);//임시, 0.62
         glowMaterial.emissiveIntensity = 0.035;
         glowMaterial.opacity = 0.1;
         group.add(glow);
@@ -2331,7 +2342,7 @@ export default function MapSimulatorSceneRuntime({
         );
         const beaconMaterial = beacon.material as THREE.MeshStandardMaterial;
         beacon.position.y = 0.34;
-        beacon.scale.setScalar(0.56);
+        beacon.scale.setScalar(0.56);//여기 임시 0.56
         beaconMaterial.emissiveIntensity = 0.045;
         beaconMaterial.opacity = 0.12;
         group.add(beacon);
@@ -2348,7 +2359,7 @@ export default function MapSimulatorSceneRuntime({
         const ringMaterial = ring.material as THREE.MeshStandardMaterial;
         ring.rotation.x = Math.PI / 2;
         ring.position.y = 0.18;
-        ring.scale.setScalar(0.68);
+        ring.scale.setScalar(0.68);//여기임시 0.68
         ringMaterial.emissiveIntensity = 0.03;
         group.add(ring);
 
